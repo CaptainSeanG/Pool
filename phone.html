@@ -16,6 +16,7 @@
     .upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.upload-btn{display:flex;align-items:center;justify-content:center;min-height:68px;text-align:center;border:1px solid rgba(255,255,255,.18);border-radius:18px;color:var(--text);background:linear-gradient(145deg,rgba(95,224,162,.26),rgba(105,210,255,.18));font-weight:950;font-size:1rem;line-height:1.15}.upload-btn.secondary{background:rgba(255,255,255,.09)}.photo-input{position:absolute;inline-size:1px;block-size:1px;opacity:0;pointer-events:none}
     .gauge-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gauge-card{text-align:center;overflow:hidden;padding:12px 8px}.gauge-wrap{max-width:180px;margin:0 auto}.gauge-svg{width:100%;height:auto;display:block}.gauge-name{font-size:.82rem;font-weight:900}.gauge-reading{font-size:1.05rem;font-weight:950;margin-top:3px}.ideal{display:inline-flex;margin-top:5px;padding:5px 8px;border-radius:999px;background:#d8fff0;color:#05243a;font-weight:950;font-size:.72rem}
     .status{min-height:24px;color:#dff7ff;font-weight:850;line-height:1.4}.recent{display:grid;gap:8px}.recent-row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;color:var(--muted);font-size:.9rem}.recent-row strong{color:var(--text)}
+    .notice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(2,12,24,.58);backdrop-filter:blur(5px);z-index:10}.notice.open{display:flex}.notice-box{width:min(390px,100%);border:1px solid rgba(255,255,255,.18);border-radius:24px;background:linear-gradient(145deg,rgba(7,42,68,.98),rgba(13,78,116,.96));box-shadow:0 24px 70px rgba(0,0,0,.45);padding:22px;text-align:center}.notice-box strong{display:block;font-size:1.25rem;margin-bottom:8px}.notice-box p{margin:0;color:var(--muted);line-height:1.45}
     @media (max-width:420px){.upload-grid,.gauge-grid{grid-template-columns:1fr}.gauge-wrap{max-width:230px}.top{flex-direction:column}.link{align-self:flex-start}}
   </style>
 </head>
@@ -27,6 +28,7 @@
     <section class="gauge-grid" id="gaugeGrid"></section>
     <section class="card"><div class="label">Recent local rows</div><div id="recentRows" class="recent"></div></section>
   </main>
+  <div id="notice" class="notice" role="status" aria-live="polite"><div class="notice-box"><strong id="noticeTitle">Processing</strong><p id="noticeText">Saving image...</p></div></div>
   <script src="data.js"></script>
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
@@ -49,6 +51,12 @@
       return seedTests.map(row=>({...row}));
     }
     function persistTests(){localStorage.setItem(STORAGE_KEY,JSON.stringify(tests))}
+    function showNotice(title,text,autoClose=false){
+      document.getElementById('noticeTitle').textContent=title;
+      document.getElementById('noticeText').textContent=text;
+      document.getElementById('notice').classList.add('open');
+      if(autoClose) setTimeout(()=>document.getElementById('notice').classList.remove('open'),1900);
+    }
     function sortedTests(){
       return [...tests].sort((a,b)=>{
         const da=new Date(`${a.date||'1900-01-01'}T00:00:00`),db=new Date(`${b.date||'1900-01-01'}T00:00:00`);
@@ -88,6 +96,7 @@
     async function analyzeLeslieSheet(dataUrl){
       if(!window.Tesseract?.recognize) return {values:{},analysis:'Leslie sheet stored. OCR was not available.'};
       document.getElementById('uploadStatus').textContent='Reading Leslie sheet...';
+      showNotice('Processing Leslie sheet','Reading the printout and looking for chemistry numbers.');
       try{const result=await Tesseract.recognize(dataUrl,'eng'); const values=parseLeslieText(result.data?.text||''); return {values,analysis:describeParsedValues(values)}}catch(err){console.warn(err); return {values:{},analysis:'Leslie sheet stored. OCR could not read this image clearly.'}}
     }
     async function analyzeStrip(dataUrl){
@@ -97,6 +106,7 @@
     async function handleUpload(event,kind){
       const file=event.target.files?.[0]; event.target.value=''; if(!file)return;
       document.getElementById('uploadStatus').textContent='Saving photo...';
+      showNotice('Processing upload','Reading the image date, saving the photo, and preparing the ledger row.');
       try{
         const [photo,stamp]=await Promise.all([compressPhoto(file),stampFromImage(file)]);
         const sheet=kind==='leslie'?await analyzeLeslieSheet(photo.dataUrl):null;
@@ -105,7 +115,8 @@
         const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:kind==='leslie'?'OCR - review':'Photo - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
         document.getElementById('uploadStatus').textContent=`Saved ${row.source} for ${row.date} ${row.time}.`;
-      }catch(err){console.error(err); document.getElementById('uploadStatus').textContent='Could not save that image. Try a smaller or clearer photo.'}
+        showNotice('Accepted results',`${row.source} was added for ${row.date} ${row.time}. Open the dashboard on this same device/browser to see it in the ledger.`,true);
+      }catch(err){console.error(err); document.getElementById('notice').classList.remove('open'); document.getElementById('uploadStatus').textContent='Could not save that image. Try a smaller or clearer photo.'}
     }
     function polar(cx,cy,r,a){const rad=(a-90)*Math.PI/180; return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)}}
     function arcPath(cx,cy,r,start,end){const s=polar(cx,cy,r,end),e=polar(cx,cy,r,start),large=end-start<=180?0:1; return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 0 ${e.x} ${e.y}`}
