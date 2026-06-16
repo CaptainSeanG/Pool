@@ -289,15 +289,17 @@
       Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,palettes[key]).value:null;});
       return {values,analysis:summarizeStrip(values)};
     }
-    function extractNumberFromLine(line){
-      const match=line.replace(/,/g,'').match(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/);
-      return match?toNumberOrNull(match[1]):null;
+    function extractResultNumberFromLine(line, validator=()=>true){
+      const matches=[...line.replace(/,/g,'').matchAll(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/g)]
+        .map(match=>toNumberOrNull(match[1]))
+        .filter(value=>value!==null&&validator(value));
+      return matches.length?matches[matches.length-1]:null;
     }
     function findOcrValue(lines, pattern, validator=()=>true){
       for(const line of lines){
         if(!pattern.test(line)) continue;
-        const value=extractNumberFromLine(line);
-        if(value!==null&&validator(value)) return value;
+        const value=extractResultNumberFromLine(line,validator);
+        if(value!==null) return value;
       }
       return null;
     }
@@ -385,12 +387,17 @@
     }
     function sortedTests(){
       return [...tests].sort((a,b)=>{
-        const da=new Date(`${a.date||'1900-01-01'}T00:00:00`);
-        const db=new Date(`${b.date||'1900-01-01'}T00:00:00`);
-        if(da-db) return da-db;
-        const order={Morning:1,AM:1,'':2,Unknown:2,Today:2,PM:3,Evening:4};
-        return (order[a.time??'']||2)-(order[b.time??'']||2);
+        const diff=timestampFor(a)-timestampFor(b);
+        return diff||String(a.id||'').localeCompare(String(b.id||''));
       });
+    }
+    function timestampFor(row){
+      const date=row.date||'1900-01-01',raw=String(row.time||'').trim();
+      const named={Morning:'08:00',AM:'08:00',Today:'12:00',PM:'15:00',Evening:'19:00',Unknown:'12:00','':'12:00'};
+      const time=named[raw]||raw||'12:00';
+      const parsed=new Date(`${date} ${time}`);
+      if(!Number.isNaN(parsed.getTime())) return parsed.getTime();
+      return new Date(`${date}T12:00:00`).getTime();
     }
     const fmt=(v,s='')=>v===null||v===undefined||v===''?DASH:`${v}${s}`;
     function evaluate(metric,v){if(v===null||v===undefined)return{label:'No data',cls:'warn'}; if(metric==='fc'){if(v<2)return{label:'Low - needs chlorine',cls:'bad'}; if(v<=6)return{label:'Good zone',cls:'good'}; if(v<=8)return{label:'A little high',cls:'warn'}; return{label:'High',cls:'bad'}} if(metric==='ph'){if(v<7.2)return{label:'Too low',cls:'bad'}; if(v<=7.6)return{label:'Sweet spot',cls:'good'}; if(v<=7.8)return{label:'Watch it',cls:'warn'}; return{label:'High - acid likely next',cls:'bad'}} if(metric==='cya'){if(v<30)return{label:'Low',cls:'warn'}; if(v<=50)return{label:'Excellent',cls:'good'}; if(v<=60)return{label:'Watch it',cls:'warn'}; return{label:'Too high',cls:'bad'}} if(metric==='ta'){if(v<70)return{label:'Low',cls:'warn'}; if(v<=100)return{label:'Good zone',cls:'good'}; if(v<=120)return{label:'Upper edge',cls:'warn'}; return{label:'High',cls:'bad'}} return{label:DASH,cls:'warn'}}

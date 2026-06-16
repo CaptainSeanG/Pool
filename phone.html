@@ -94,11 +94,16 @@
     }
     function sortedTests(){
       return [...tests].sort((a,b)=>{
-        const da=new Date(`${a.date||'1900-01-01'}T00:00:00`),db=new Date(`${b.date||'1900-01-01'}T00:00:00`);
-        if(da-db) return da-db;
-        const order={Morning:1,AM:1,'':2,Unknown:2,Today:2,PM:3,Evening:4};
-        return (order[a.time??'']||2)-(order[b.time??'']||2);
+        const diff=timestampFor(a)-timestampFor(b);
+        return diff||String(a.id||'').localeCompare(String(b.id||''));
       });
+    }
+    function timestampFor(row){
+      const date=row.date||'1900-01-01',raw=String(row.time||'').trim();
+      const named={Morning:'08:00',AM:'08:00',Today:'12:00',PM:'15:00',Evening:'19:00',Unknown:'12:00','':'12:00'};
+      const time=named[raw]||raw||'12:00',parsed=new Date(`${date} ${time}`);
+      if(!Number.isNaN(parsed.getTime())) return parsed.getTime();
+      return new Date(`${date}T12:00:00`).getTime();
     }
     async function stampFromImage(file){
       let taken=null;
@@ -117,8 +122,8 @@
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
       return {dataUrl:canvas.toDataURL('image/jpeg',.82),width:canvas.width,height:canvas.height};
     }
-    const extractNumberFromLine=line=>{const match=line.replace(/,/g,'').match(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/); return match?toNumberOrNull(match[1]):null};
-    function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractNumberFromLine(line); if(value!==null&&validator(value))return value} return null}
+    const extractResultNumberFromLine=(line,validator=()=>true)=>{const matches=[...line.replace(/,/g,'').matchAll(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/g)].map(match=>toNumberOrNull(match[1])).filter(value=>value!==null&&validator(value)); return matches.length?matches[matches.length-1]:null};
+    function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractResultNumberFromLine(line,validator); if(value!==null)return value} return null}
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       return {fc:findOcrValue(lines,/(free chlorine|free available chlorine|\bfac\b)/i,v=>v<=20),tc:findOcrValue(lines,/(total chlorine|\btc\b)/i,v=>v<=20),ph:findOcrValue(lines,/(^|\s)ph(\s|$|:)/i,v=>v>=6&&v<=10),ta:findOcrValue(lines,/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400),ch:findOcrValue(lines,/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200),cya:findOcrValue(lines,/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300),copper:findOcrValue(lines,/copper/i,v=>v<=10),phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000)};
