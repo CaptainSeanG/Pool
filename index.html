@@ -32,7 +32,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v5</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v6</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -58,7 +58,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v5';
+    const APP_VERSION='v6';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -353,6 +353,36 @@
       }
       return null;
     }
+    function findRangeResults(lines, rangePattern, validator=()=>true, minCount=3){
+      const results=[];
+      const seen=new Set();
+      lines.forEach((_,index)=>{
+        const block=lines.slice(index,index+3).join(' ');
+        if(!rangePattern.test(block)||seen.has(block)) return;
+        seen.add(block);
+        const numbers=extractNumbers(block,validator);
+        const result=numbers[numbers.length-1];
+        if(numbers.length>=minCount&&results[results.length-1]!==result) results.push(result);
+      });
+      return results;
+    }
+    function applyLeslieRangeFallback(lines, values){
+      const rangeMap=[
+        ['ph',/7\.2\s*[-–]\s*7\.8/i,v=>v>=6&&v<=10,0,()=>true],
+        ['ta',/80\s*[-–]\s*120/i,v=>v<=400,0,value=>value===null||value<40],
+        ['ch',/200\s*[-–]\s*400/i,v=>v<=1200,0,()=>true],
+        ['cya',/30\s*[-–]\s*100/i,v=>v<=300,0,()=>true],
+        ['iron',/0\s*[-–]\s*0\.?2/i,v=>v<=10,0,()=>true],
+        ['copper',/0\s*[-–]\s*0\.?2/i,v=>v<=10,1,()=>true],
+        ['phosphates',/0\s*[-–]\s*100\s*p{1,2}b/i,v=>v<=10000,0,()=>true],
+        ['tds',/0\s*[-–]\s*2500/i,v=>v<=10000,0,()=>true]
+      ];
+      rangeMap.forEach(([key,pattern,validator,occurrence,shouldReplace])=>{
+        if(!shouldReplace(values[key])) return;
+        const candidates=findRangeResults(lines,pattern,validator);
+        if(candidates[occurrence]!==undefined) values[key]=candidates[occurrence];
+      });
+    }
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
@@ -383,6 +413,7 @@
         values[start.key]=numbers.length?numbers[numbers.length-1]:findOcrValue(tableLines,pattern,validator);
       });
       defs.forEach(([key,pattern,validator])=>{if(values[key]===null) values[key]=findOcrValue(lines,pattern,validator);});
+      applyLeslieRangeFallback(tableLines,values);
       return values;
     }
     function describeParsedValues(values){

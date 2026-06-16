@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v5</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v6</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v5';
+    const APP_VERSION='v6';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -133,6 +133,8 @@
     const extractNumbers=(text,validator=()=>true)=>[...String(text).replace(/,/g,'').matchAll(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/g)].map(match=>toNumberOrNull(match[1])).filter(value=>value!==null&&validator(value));
     const extractResultNumberFromLine=(line,validator=()=>true)=>{const matches=extractNumbers(line,validator); return matches.length?matches[matches.length-1]:null};
     function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractResultNumberFromLine(line,validator); if(value!==null)return value} return null}
+    function findRangeResults(lines,rangePattern,validator=()=>true,minCount=3){const results=[],seen=new Set(); lines.forEach((_,index)=>{const block=lines.slice(index,index+3).join(' '); if(!rangePattern.test(block)||seen.has(block))return; seen.add(block); const numbers=extractNumbers(block,validator),result=numbers[numbers.length-1]; if(numbers.length>=minCount&&results[results.length-1]!==result)results.push(result);}); return results}
+    function applyLeslieRangeFallback(lines,values){const rangeMap=[['ph',/7\.2\s*[-–]\s*7\.8/i,v=>v>=6&&v<=10,0,()=>true],['ta',/80\s*[-–]\s*120/i,v=>v<=400,0,value=>value===null||value<40],['ch',/200\s*[-–]\s*400/i,v=>v<=1200,0,()=>true],['cya',/30\s*[-–]\s*100/i,v=>v<=300,0,()=>true],['iron',/0\s*[-–]\s*0\.?2/i,v=>v<=10,0,()=>true],['copper',/0\s*[-–]\s*0\.?2/i,v=>v<=10,1,()=>true],['phosphates',/0\s*[-–]\s*100\s*p{1,2}b/i,v=>v<=10000,0,()=>true],['tds',/0\s*[-–]\s*2500/i,v=>v<=10000,0,()=>true]]; rangeMap.forEach(([key,pattern,validator,occurrence,shouldReplace])=>{if(!shouldReplace(values[key]))return; const candidates=findRangeResults(lines,pattern,validator); if(candidates[occurrence]!==undefined)values[key]=candidates[occurrence];});}
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
@@ -143,6 +145,7 @@
       starts.sort((a,b)=>a.index-b.index);
       starts.forEach((start,position)=>{const [,pattern,validator]=defs.find(([key])=>key===start.key); const end=starts[position+1]?.index??Math.min(tableLines.length,start.index+5); const numbers=extractNumbers(tableLines.slice(start.index,end).join(' '),validator); values[start.key]=numbers.length?numbers[numbers.length-1]:findOcrValue(tableLines,pattern,validator);});
       defs.forEach(([key,pattern,validator])=>{if(values[key]===null) values[key]=findOcrValue(lines,pattern,validator);});
+      applyLeslieRangeFallback(tableLines,values);
       return values;
     }
     function describeParsedValues(values){
