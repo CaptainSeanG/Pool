@@ -44,13 +44,16 @@ async function handleUpload(request, env, cors) {
 
   await putGithubFile(env, imagePath, match[2], `Add pool test image ${id}`);
   const processed = parseImageDataUrl(photo.processedDataUrl || "");
-  const processedPath = processed ? `uploads/${date}/${id}-strip.${processed.ext}` : "";
+  let processedPath = processed ? `uploads/${date}/${id}-strip.${processed.ext}` : "";
   if (processed) {
-    await putGithubFile(env, processedPath, processed.base64, `Add pool test strip crop ${id}`);
+    try {
+      await putGithubFile(env, processedPath, processed.base64, `Add pool test strip crop ${id}`);
+    } catch (error) {
+      processedPath = "";
+      console.warn("Processed strip crop upload failed", error);
+    }
   }
 
-  const existing = await getGithubJson(env, LEDGER_PATH, []);
-  const ledger = Array.isArray(existing.content) ? existing.content : [];
   const publicRow = {
     ...row,
     photo: {
@@ -65,14 +68,24 @@ async function handleUpload(request, env, cors) {
       processedUrl: processedPath || null,
     },
   };
-  const nextLedger = [publicRow, ...ledger.filter((item) => item.id !== publicRow.id)];
-  await putGithubFile(
-    env,
-    LEDGER_PATH,
-    toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
-    `Update pool ledger ${id}`,
-    existing.sha
-  );
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await getGithubJson(env, LEDGER_PATH, []);
+    const ledger = Array.isArray(existing.content) ? existing.content : [];
+    const nextLedger = [publicRow, ...ledger.filter((item) => item.id !== publicRow.id)];
+    try {
+      await putGithubFile(
+        env,
+        LEDGER_PATH,
+        toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
+        `Update pool ledger ${id}`,
+        existing.sha
+      );
+      return json({ ok: true, row: publicRow }, cors);
+    } catch (error) {
+      if (!isGithubConflict(error) || attempt === 2) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
 
   return json({ ok: true, row: publicRow }, cors);
 }

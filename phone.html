@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v14</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v15</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v14';
+    const APP_VERSION='v15';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -276,7 +276,7 @@
         const t=top+(bottom-top)*(y/out.height);
         for(let x=0;x<out.width;x++){
           const off=(x/out.width-.5)*width;
-          const sx=t*line.ux+(line.p+off)*line.nx,sy=t*line.uy+(line.p+off)*line.ny;
+          const sx=Math.max(0,Math.min(sourceCanvas.width-1,t*line.ux+(line.p+off)*line.nx)),sy=Math.max(0,Math.min(sourceCanvas.height-1,t*line.uy+(line.p+off)*line.ny));
           ctx.drawImage(sourceCanvas,sx,sy,1,1,x,y,1,1);
         }
       }
@@ -307,11 +307,22 @@
       showNotice('Processing upload','Reading the image date, saving the photo, and preparing the ledger row.');
       try{
         const [photo,stamp]=await Promise.all([compressPhoto(file),stampFromImage(file)]);
-        const sheet=kind==='leslie'?await analyzeLeslieSheet(photo.dataUrl):null;
+        let sheet=null,strip=null;
+        try{
+          sheet=kind==='leslie'?await analyzeLeslieSheet(photo.dataUrl):null;
+        }catch(err){
+          console.warn('Sheet analysis failed, saving photo anyway',err);
+          sheet={values:{},analysis:'Sheet photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
+        }
         const sheetHasValues=sheet&&Object.values(sheet.values||{}).some(value=>value!==null&&value!==undefined);
-        const strip=kind==='strip'||(sheet&&!sheetHasValues)?await analyzeStrip(photo.dataUrl):null;
-        const analysis=sheetHasValues?sheet.analysis:strip.analysis;
-        const parsed=sheetHasValues?sheet.values:strip.values;
+        try{
+          strip=kind==='strip'||(sheet&&!sheetHasValues)?await analyzeStrip(photo.dataUrl):null;
+        }catch(err){
+          console.warn('Strip analysis failed, saving photo anyway',err);
+          strip={values:{},analysis:'Strip photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
+        }
+        const analysis=sheetHasValues?sheet.analysis:(strip?.analysis||'Photo saved. Review the photo and enter values on the dashboard ledger.');
+        const parsed=sheetHasValues?sheet.values:(strip?.values||{});
         const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,processedDataUrl:strip?.previewDataUrl||null,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
         let accepted=row,sharedMessage='Saved locally on this device.';
