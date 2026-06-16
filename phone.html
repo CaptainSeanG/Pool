@@ -122,11 +122,20 @@
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
       return {dataUrl:canvas.toDataURL('image/jpeg',.82),width:canvas.width,height:canvas.height};
     }
-    const extractResultNumberFromLine=(line,validator=()=>true)=>{const matches=[...line.replace(/,/g,'').matchAll(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/g)].map(match=>toNumberOrNull(match[1])).filter(value=>value!==null&&validator(value)); return matches.length?matches[matches.length-1]:null};
+    const extractNumbers=(text,validator=()=>true)=>[...String(text).replace(/,/g,'').matchAll(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/g)].map(match=>toNumberOrNull(match[1])).filter(value=>value!==null&&validator(value));
+    const extractResultNumberFromLine=(line,validator=()=>true)=>{const matches=extractNumbers(line,validator); return matches.length?matches[matches.length-1]:null};
     function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractResultNumberFromLine(line,validator); if(value!==null)return value} return null}
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-      return {fc:findOcrValue(lines,/(free chlorine|free available chlorine|\bfac\b)/i,v=>v<=20),tc:findOcrValue(lines,/(total chlorine|\btc\b)/i,v=>v<=20),ph:findOcrValue(lines,/(^|\s)ph(\s|$|:)/i,v=>v>=6&&v<=10),ta:findOcrValue(lines,/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400),ch:findOcrValue(lines,/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200),cya:findOcrValue(lines,/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300),iron:findOcrValue(lines,/iron/i,v=>v<=10),copper:findOcrValue(lines,/copper/i,v=>v<=10),phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000),tds:findOcrValue(lines,/(^|\s)tds(\s|$|:)/i,v=>v<=10000)};
+      const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
+      const tableLines=tableStart>=0?lines.slice(tableStart):lines;
+      const defs=[['fc',/(free chlorine|free available chlorine|\bfac\b)/i,v=>v<=20],['tc',/(total chlorine|\btc\b)/i,v=>v<=20],['ph',/(^|\s)ph(\s|$|:)/i,v=>v>=6&&v<=10],['ta',/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400],['ch',/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200],['cya',/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300],['iron',/\biron\b/i,v=>v<=10],['copper',/\bcopper\b/i,v=>v<=10],['phosphates',/(phosphates|phosphate)/i,v=>v<=10000],['tds',/(^|\s)tds(\s|$|:)/i,v=>v<=10000]];
+      const values=Object.fromEntries(defs.map(([key])=>[key,null])),starts=[];
+      tableLines.forEach((line,index)=>{defs.forEach(([key,pattern])=>{if(!starts.some(item=>item.key===key)&&pattern.test(line)) starts.push({key,index});});});
+      starts.sort((a,b)=>a.index-b.index);
+      starts.forEach((start,position)=>{const [,pattern,validator]=defs.find(([key])=>key===start.key); const end=starts[position+1]?.index??Math.min(tableLines.length,start.index+5); const numbers=extractNumbers(tableLines.slice(start.index,end).join(' '),validator); values[start.key]=numbers.length?numbers[numbers.length-1]:findOcrValue(tableLines,pattern,validator);});
+      defs.forEach(([key,pattern,validator])=>{if(values[key]===null) values[key]=findOcrValue(lines,pattern,validator);});
+      return values;
     }
     function describeParsedValues(values){
       const labels={fc:'FC',tc:'TC',ph:'pH',ta:'TA',ch:'CH',cya:'CYA',iron:'Iron',copper:'Copper',phosphates:'Phosphates',tds:'TDS'};
