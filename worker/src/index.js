@@ -13,6 +13,9 @@ export default {
       if (url.pathname === "/upload" && request.method === "POST") {
         return await handleUpload(request, env, cors);
       }
+      if (url.pathname === "/delete" && request.method === "POST") {
+        return await handleDelete(request, env, cors);
+      }
       return json({ error: "Not found" }, cors, 404);
     } catch (error) {
       return json({ error: error.message || "Upload failed" }, cors, 500);
@@ -21,10 +24,8 @@ export default {
 };
 
 async function handleUpload(request, env, cors) {
-  const uploadKey = request.headers.get("x-pool-upload-key") || "";
-  if (!env.UPLOAD_KEY || uploadKey !== env.UPLOAD_KEY) {
-    return json({ error: "Invalid upload key" }, cors, 401);
-  }
+  const authError = validateUploadKey(request, env, cors);
+  if (authError) return authError;
 
   const body = await request.json();
   const row = sanitizeRow(body.row || {});
@@ -66,6 +67,56 @@ async function handleUpload(request, env, cors) {
   return json({ ok: true, row: publicRow }, cors);
 }
 
+async function handleDelete(request, env, cors) {
+  const authError = validateUploadKey(request, env, cors);
+  if (authError) return authError;
+
+  const body = await request.json();
+  const id = String(body.id || "").trim();
+  if (!id) return json({ error: "Missing row id" }, cors, 400);
+
+  const existing = await getGithubJson(env, LEDGER_PATH, []);
+  const ledger = Array.isArray(existing.content) ? existing.content : [];
+  const row = ledger.find((item) => String(item.id) === id);
+  const nextLedger = ledger.filter((item) => String(item.id) !== id);
+
+  if (nextLedger.length === ledger.length) {
+    return json({ ok: true, deleted: false }, cors);
+  }
+
+  await putGithubFile(
+    env,
+    LEDGER_PATH,
+    toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
+    `Delete pool ledger row ${safeName(id)}`,
+    existing.sha
+  );
+
+  const imagePath = getUploadImagePath(row);
+  let imageDeleted = false;
+  if (imagePath) {
+    try {
+      const meta = await getGithubFileMeta(env, imagePath);
+      if (meta?.sha) {
+        await deleteGithubFile(env, imagePath, meta.sha, `Delete pool test image ${safeName(id)}`);
+        imageDeleted = true;
+      }
+    } catch (error) {
+      console.warn(`Image cleanup failed for ${imagePath}:`, error);
+    }
+  }
+
+  return json({ ok: true, deleted: true, imageDeleted }, cors);
+}
+
+function validateUploadKey(request, env, cors) {
+  const uploadKey = request.headers.get("x-pool-upload-key") || "";
+  if (!env.UPLOAD_KEY || uploadKey !== env.UPLOAD_KEY) {
+    return json({ error: "Invalid upload key" }, cors, 401);
+  }
+  return null;
+}
+
 function sanitizeRow(row) {
   const clean = {};
   const fields = [
@@ -100,6 +151,13 @@ async function getGithubJson(env, path, fallback) {
   return { content: JSON.parse(text), sha: payload.sha };
 }
 
+async function getGithubFileMeta(env, path) {
+  const response = await githubFetch(env, `contents/${path}?ref=${encodeURIComponent(env.GITHUB_BRANCH)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GitHub file lookup failed: ${response.status}`);
+  return response.json();
+}
+
 function toBase64(text) {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
@@ -130,6 +188,28 @@ async function putGithubFile(env, path, base64Content, message, sha = null) {
     throw new Error(`GitHub write failed: ${response.status} ${text}`);
   }
   return response.json();
+}
+
+async function deleteGithubFile(env, path, sha, message) {
+  const response = await githubFetch(env, `contents/${path}`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      message,
+      sha,
+      branch: env.GITHUB_BRANCH,
+    }),
+  });
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+    throw new Error(`GitHub delete failed: ${response.status} ${text}`);
+  }
+  return response.status === 404 ? null : response.json();
+}
+
+function getUploadImagePath(row) {
+  const path = row?.photo?.path || row?.photo?.url || "";
+  const cleanPath = String(path).replace(/^\/+/, "");
+  return cleanPath.startsWith("uploads/") ? cleanPath : "";
 }
 
 function githubFetch(env, path, init = {}) {

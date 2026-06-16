@@ -139,6 +139,23 @@
       if(!response.ok) throw new Error(payload.error||`Upload failed with ${response.status}`);
       return {ok:true,row:payload.row};
     }
+    function rowUsesSharedLedger(row){
+      const photo=row?.photo||{};
+      return Boolean(API_BASE&&row?.id&&(photo.path||(photo.url&&!String(photo.url).startsWith('data:'))));
+    }
+    async function deleteSharedRow(row){
+      if(!API_BASE) return {ok:false,reason:'Worker not configured'};
+      const key=getUploadKey();
+      if(!key) return {ok:false,reason:'Missing upload key'};
+      const response=await fetch(`${API_BASE}/delete`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-pool-upload-key':key},
+        body:JSON.stringify({id:row.id})
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(payload.error||`Delete failed with ${response.status}`);
+      return {ok:true,deleted:payload.deleted};
+    }
     function resetLocalEdits(){
       if(!confirm('Reset local edits and restore the data.js seed ledger?')) return;
       localStorage.removeItem(STORAGE_KEY);
@@ -498,7 +515,30 @@
         photoTd.appendChild(photoBtn); tr.appendChild(photoTd);
         const actionTd=document.createElement('td');
         const del=document.createElement('button'); del.className='delete-btn'; del.type='button'; del.title='Delete row'; del.setAttribute('aria-label','Delete row'); del.innerHTML='&#128465;';
-        del.addEventListener('click',()=>{if(!confirm(`Delete the ${row.date||'undated'} ${row.time||''} reading?`)) return; tests=tests.filter(item=>item.id!==row.id); if(activePhotoRowId===row.id) closePhoto(); persistTests(); renderLedger(); updateDashboard();});
+        del.addEventListener('click',async()=>{
+          if(!confirm(`Delete the ${row.date||'undated'} ${row.time||''} reading?`)) return;
+          del.disabled=true;
+          const previousTests=tests.slice();
+          try{
+            if(rowUsesSharedLedger(row)){
+              showUploadNotice('Deleting row','Removing this entry from the shared GitHub ledger.');
+              await deleteSharedRow(row);
+            }
+            tests=tests.filter(item=>item.id!==row.id);
+            if(activePhotoRowId===row.id) closePhoto();
+            persistTests();
+            renderLedger();
+            updateDashboard();
+            showUploadNotice('Deleted','The ledger entry has been removed.',true);
+          }catch(err){
+            console.error(err);
+            tests=previousTests;
+            persistTests();
+            renderLedger();
+            updateDashboard();
+            showUploadNotice('Delete failed',err.message||'The shared ledger did not accept the delete.');
+          }
+        });
         actionTd.appendChild(del); tr.appendChild(actionTd); body.appendChild(tr);
       });
     }
