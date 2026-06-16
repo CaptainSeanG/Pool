@@ -11,7 +11,7 @@
     :root{--bg1:#04182d;--bg2:#0c3f6a;--bg3:#0f6da7;--card:rgba(255,255,255,.12);--border:rgba(255,255,255,.14);--text:#ebf8ff;--muted:#b9d9ee;--good:#5fe0a2;--shadow:0 18px 50px rgba(0,0,0,.28)}
     *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(circle at 15% 6%,rgba(105,210,255,.2),transparent 24%),linear-gradient(180deg,var(--bg1),var(--bg2) 45%,var(--bg3));min-height:100vh}
     .shell{width:min(100% - 22px,680px);margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 0 calc(28px + env(safe-area-inset-bottom))}
-    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:16px}.kicker{color:#dff7ff;font-weight:900;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}.link{color:#e8fbff;text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:9px 12px;background:rgba(255,255,255,.08);font-weight:800}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:16px}.kicker{color:#dff7ff;font-weight:900;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em}.nav-link{display:flex;flex-direction:column;align-items:flex-end;gap:7px}.link{color:#e8fbff;text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:9px 12px;background:rgba(255,255,255,.08);font-weight:800}.version{color:var(--muted);font-size:.82rem;font-weight:900}
     h1{margin:4px 0 0;font-size:clamp(2rem,10vw,3.3rem);line-height:.95;letter-spacing:-.03em}.sub{color:var(--muted);line-height:1.45;margin:10px 0 0}.card{background:linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.08));border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);padding:16px;margin:14px 0}
     .latest{display:grid;grid-template-columns:1fr;gap:8px}.label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.big{font-size:1.35rem;font-weight:900}.summary{color:var(--muted);line-height:1.45}
     .upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.upload-btn{display:flex;align-items:center;justify-content:center;min-height:68px;text-align:center;border:1px solid rgba(255,255,255,.18);border-radius:18px;color:var(--text);background:linear-gradient(145deg,rgba(95,224,162,.26),rgba(105,210,255,.18));font-weight:950;font-size:1rem;line-height:1.15}.upload-btn.secondary{background:rgba(255,255,255,.09)}.photo-input{position:absolute;inline-size:1px;block-size:1px;opacity:0;pointer-events:none}
@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><a class="link" href="index.html">Dashboard</a></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v5</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,6 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
+    const APP_VERSION='v5';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -97,6 +98,13 @@
         const diff=timestampFor(a)-timestampFor(b);
         return diff||String(a.id||'').localeCompare(String(b.id||''));
       });
+    }
+    function formatSimpleTime(time){
+      const raw=String(time||'').trim();
+      if(!raw) return '';
+      const parsed=new Date(`2000-01-01 ${raw}`);
+      if(Number.isNaN(parsed.getTime())) return raw.toLowerCase().replace(/\s+/g,'');
+      return parsed.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).toLowerCase().replace(/\s+/g,'');
     }
     function timestampFor(row){
       const date=row.date||'1900-01-01',raw=String(row.time||'').trim();
@@ -201,6 +209,7 @@
             tests=tests.map(item=>item.id===row.id?accepted:item);
             persistTests();
             renderAll();
+            setTimeout(loadSharedLedger,1200);
             sharedMessage='Saved to GitHub shared ledger.';
           }
         }catch(err){
@@ -227,15 +236,18 @@
     function gaugeConfigs(latest){const hardnessValue=latest.ch??500; return [{name:'Hardness',value:hardnessValue,unit:'ppm',min:0,max:1000,ideal:[250,400],idealLabel:'250-400 ppm',stops:[{value:0,label:'0',color:'#dce8fb'},{value:100,label:'100',color:'#9ab4e5'},{value:250,label:'250',color:'#8c7dd8'},{value:500,label:'500',color:'#8a57bc'},{value:1000,label:'1000',color:'#7b2d8d'}]},{name:'Free Chlorine',value:latest.fc,unit:'ppm',min:0,max:10,ideal:[3,6],idealLabel:'3-6 ppm',stops:[{value:0,label:'0',color:'#f7eef8'},{value:.5,label:'0.5',color:'#ecd9f2'},{value:1,label:'1',color:'#dcb9e8'},{value:3,label:'3',color:'#bf87d8'},{value:5,label:'5',color:'#a254bc'},{value:10,label:'10',color:'#8f1a91'}]},{name:'CYA',value:latest.cya,unit:'ppm',min:0,max:240,ideal:[30,50],idealLabel:'30-50 ppm',stops:[{value:0,label:'0',color:'#f3be92'},{value:40,label:'30-50',color:'#eaa5a0'},{value:100,label:'100',color:'#e58d98'},{value:150,label:'150',color:'#c86886'},{value:240,label:'240',color:'#9b6476'}]},{name:'Alkalinity',value:latest.ta,unit:'ppm',min:0,max:240,ideal:[70,100],idealLabel:'70-100 ppm',stops:[{value:0,label:'0',color:'#e4e798'},{value:40,label:'40',color:'#bad89c'},{value:80,label:'80',color:'#9fd2b2'},{value:120,label:'120',color:'#8acfd0'},{value:180,label:'180',color:'#69c7d9'},{value:240,label:'240',color:'#53b6d7'}]},{name:'pH',value:latest.ph,unit:'',min:6.2,max:9,ideal:[7.4,7.6],idealLabel:'7.4-7.6',stops:[{value:6.2,label:'6.2',color:'#f0c84d'},{value:6.8,label:'6.8',color:'#efa048'},{value:7.2,label:'7.2',color:'#eb8a47'},{value:7.8,label:'7.8',color:'#e97b47'},{value:8.4,label:'8.4',color:'#df6948'},{value:9,label:'9.0',color:'#d85a47'}]},{name:'Total Chlorine',value:latest.tc,unit:'ppm',min:0,max:10,ideal:[3,6],idealLabel:'3-6 ppm',stops:[{value:0,label:'0',color:'#e6ea73'},{value:.5,label:'0.5',color:'#cae26e'},{value:1,label:'1',color:'#add96a'},{value:3,label:'3',color:'#83c761'},{value:5,label:'5',color:'#54b257'},{value:10,label:'10',color:'#2f934b'}]}]}
     function renderAll(){
       const rows=sortedTests(),latest=rows[rows.length-1],grid=document.getElementById('gaugeGrid');
+      document.getElementById('appVersion').textContent=APP_VERSION;
       document.getElementById('latestDate').textContent=latest?(latest.time?`${latest.date} - ${latest.time}`:latest.date):'-';
       document.getElementById('latestSummary').textContent=latest?`FC ${fmt(latest.fc,' ppm')} - pH ${fmt(latest.ph)} - TA ${fmt(latest.ta,' ppm')} - CYA ${fmt(latest.cya,' ppm')}`:'No rows yet.';
       grid.replaceChildren(); if(latest) gaugeConfigs(latest).forEach(cfg=>grid.appendChild(gauge(cfg)));
-      const recent=document.getElementById('recentRows'); recent.replaceChildren(); rows.slice(-4).reverse().forEach(row=>{const el=document.createElement('div'); el.className='recent-row'; el.innerHTML=`<span><strong>${row.date}</strong> ${row.time||''}<br>${row.source}</span><span>${row.photo?'Photo saved':'No photo'}</span>`; recent.appendChild(el)});
+      const recent=document.getElementById('recentRows'); recent.replaceChildren(); rows.slice().reverse().slice(0,6).forEach(row=>{const el=document.createElement('div'); el.className='recent-row'; const simpleTime=formatSimpleTime(row.time); el.innerHTML=`<span><strong>${row.date}</strong>${simpleTime?' '+simpleTime:''}<br>${row.source}</span><span>${row.photo?'Photo saved':'No photo'}</span>`; recent.appendChild(el)});
     }
     document.getElementById('stripCamera').addEventListener('change',event=>handleUpload(event,'strip'));
     document.getElementById('stripLibrary').addEventListener('change',event=>handleUpload(event,'strip'));
     document.getElementById('leslieCamera').addEventListener('change',event=>handleUpload(event,'leslie'));
     document.getElementById('leslieLibrary').addEventListener('change',event=>handleUpload(event,'leslie'));
+    window.addEventListener('focus',loadSharedLedger);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden) loadSharedLedger();});
     renderAll();
     loadSharedLedger();
   </script>

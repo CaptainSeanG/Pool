@@ -75,22 +75,35 @@ async function handleDelete(request, env, cors) {
   const id = String(body.id || "").trim();
   if (!id) return json({ error: "Missing row id" }, cors, 400);
 
-  const existing = await getGithubJson(env, LEDGER_PATH, []);
-  const ledger = Array.isArray(existing.content) ? existing.content : [];
-  const row = ledger.find((item) => String(item.id) === id);
-  const nextLedger = ledger.filter((item) => String(item.id) !== id);
+  let row = null;
+  let deleted = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await getGithubJson(env, LEDGER_PATH, []);
+    const ledger = Array.isArray(existing.content) ? existing.content : [];
+    row = ledger.find((item) => String(item.id) === id) || row;
+    const nextLedger = ledger.filter((item) => String(item.id) !== id);
 
-  if (nextLedger.length === ledger.length) {
-    return json({ ok: true, deleted: false }, cors);
+    if (nextLedger.length === ledger.length) {
+      return json({ ok: true, deleted: false }, cors);
+    }
+
+    try {
+      await putGithubFile(
+        env,
+        LEDGER_PATH,
+        toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
+        `Delete pool ledger row ${safeName(id)}`,
+        existing.sha
+      );
+      deleted = true;
+      break;
+    } catch (error) {
+      if (!isGithubConflict(error) || attempt === 2) throw error;
+      await sleep(250 * (attempt + 1));
+    }
   }
 
-  await putGithubFile(
-    env,
-    LEDGER_PATH,
-    toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
-    `Delete pool ledger row ${safeName(id)}`,
-    existing.sha
-  );
+  if (!deleted) return json({ ok: true, deleted: false }, cors);
 
   const imagePath = getUploadImagePath(row);
   let imageDeleted = false;
@@ -188,6 +201,14 @@ async function putGithubFile(env, path, base64Content, message, sha = null) {
     throw new Error(`GitHub write failed: ${response.status} ${text}`);
   }
   return response.json();
+}
+
+function isGithubConflict(error) {
+  return String(error?.message || "").includes("GitHub write failed: 409");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function deleteGithubFile(env, path, sha, message) {
