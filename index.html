@@ -6,6 +6,7 @@
   <title>Pool Chemistry Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
   <style>
     :root{--bg1:#04182d;--bg2:#0c3f6a;--bg3:#0f6da7;--card:rgba(255,255,255,.11);--border:rgba(255,255,255,.12);--text:#ebf8ff;--muted:#b9d9ee;--good:#5fe0a2;--warn:#ffd166;--bad:#ff6b6b;--shadow:0 18px 50px rgba(0,0,0,.28);--radius:24px}
     *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(circle at 10% 10%, rgba(105,210,255,.18), transparent 18%),radial-gradient(circle at 88% 18%, rgba(137,242,220,.12), transparent 20%),linear-gradient(180deg,var(--bg1),var(--bg2) 38%,var(--bg3));min-height:100vh;overflow-x:hidden}
@@ -13,7 +14,7 @@
     .backyard-art{position:fixed;inset:auto 0 0 0;height:220px;pointer-events:none;opacity:.18;background:radial-gradient(circle at 12% 100%, rgba(255,255,255,.16), rgba(255,255,255,0) 36%),radial-gradient(circle at 86% 100%, rgba(255,255,255,.14), rgba(255,255,255,0) 28%),linear-gradient(180deg,transparent 0 45%, rgba(7,47,33,.58) 45% 100%);clip-path:polygon(0 100%,0 62%,18% 56%,34% 64%,50% 54%,65% 60%,82% 50%,100% 58%,100% 100%)}
     .container{width:min(1480px,calc(100% - 32px));margin:0 auto;padding:26px 0 50px;position:relative;z-index:1}.hero,.card{background:linear-gradient(135deg, rgba(255,255,255,.14), rgba(255,255,255,.08));border:1px solid var(--border);border-radius:32px;backdrop-filter:blur(10px);box-shadow:var(--shadow)}
     .hero{padding:30px 30px 24px;overflow:hidden;position:relative}.hero::after{content:"";position:absolute;inset:auto -40px -40px auto;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(105,210,255,.35), rgba(105,210,255,0) 65%);filter:blur(6px)}
-    .hero-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:22px;align-items:end}.kicker{display:inline-block;padding:7px 12px;border-radius:999px;background:rgba(105,210,255,.18);color:#dff7ff;font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px} h1{margin:0;font-size:clamp(2rem,4vw,4rem);line-height:.95;letter-spacing:-.03em}.subtitle{color:var(--muted);max-width:860px;font-size:1.03rem;line-height:1.6;margin:16px 0 0}.pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.pill{padding:10px 14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:999px;color:var(--text);font-size:.93rem}
+    .hero-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:22px;align-items:end}.kicker{display:inline-block;padding:7px 12px;border-radius:999px;background:rgba(105,210,255,.18);color:#dff7ff;font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px} h1{margin:0;font-size:clamp(2rem,4vw,4rem);line-height:.95;letter-spacing:-.03em}.subtitle{color:var(--muted);max-width:860px;font-size:1.03rem;line-height:1.6;margin:16px 0 0}.pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.pill{padding:10px 14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:999px;color:var(--text);font-size:.93rem}.pill-link{text-decoration:none;background:linear-gradient(90deg,rgba(95,224,162,.25),rgba(105,210,255,.22))}
     .section-title{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:28px 4px 14px}.section-title h2{margin:0;font-size:1.35rem;letter-spacing:-.02em}.section-title p{margin:0;color:var(--muted);font-size:.95rem}.grid{display:grid;gap:14px}.card{padding:18px;border-radius:var(--radius)}.metric-label{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}.metric-value{font-size:2rem;font-weight:800;letter-spacing:-.03em;margin-bottom:6px}
     .gauge-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.gauge-card{text-align:center;overflow:hidden;padding:14px 10px}.gauge-wrap{position:relative;max-width:210px;margin:0 auto}.gauge-svg{width:100%;height:auto;display:block}.gauge-name{font-size:.9rem;font-weight:800;letter-spacing:.01em;margin-top:0}.gauge-reading{margin-top:5px;font-size:1.12rem;font-weight:800}.gauge-target{color:var(--muted);font-size:.78rem;margin-top:4px;line-height:1.3}.ideal-legend{display:inline-flex;align-items:center;justify-content:center;gap:7px;color:#062338;font-size:.8rem;font-weight:900;margin-top:7px;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,#a9ffd5,#ecfff8);box-shadow:0 0 18px rgba(95,224,162,.45)}.ideal-legend::before{content:"";width:24px;height:6px;border-radius:999px;background:#16c784;box-shadow:0 0 10px rgba(95,224,162,.85)}
     .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.status{display:inline-flex;align-items:center;gap:8px;font-size:.88rem;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08)}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}.good{background:var(--good)}.warn{background:var(--warn)}.bad{background:var(--bad)}.metric-card{position:relative;overflow:hidden}.metric-card::before{content:"";position:absolute;inset:auto -30px -35px auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.18), transparent 68%);opacity:.8}
@@ -29,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><a class="pill pill-link" href="phone.html">Phone upload page</a></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -38,7 +39,7 @@
     <div class="section-title"><h2>What needs attention?</h2><p>Action items are based on the most recent data point.</p></div>
     <section class="grid advice-grid"><div class="card"><div class="metric-label">Action plan</div><div id="actions" class="advice-list"></div></div><div class="card"><div class="metric-label">Low-drama routine</div><div class="action"><div>H2O</div><div><strong>Evening chlorine dosing</strong><small>Top up liquid chlorine in the evening when FC trends low. That keeps more sanitizer in the water instead of donating it to the sun.</small></div></div><div class="action"><div>Test</div><div><strong>Use store tests as anchor points</strong><small>Daily strips are great for trend lines. Leslie's tests are your higher-confidence checkpoints.</small></div></div><div class="action"><div>Easy</div><div><strong>Do not over-correct</strong><small>When the water is clear and FC/pH are close, the smartest move is often to leave it alone.</small></div></div></div></section>
     <div class="section-title"><h2>Trend charts</h2><p>History over time, so problems show up before the pool gets weird.</p></div><section class="grid chart-grid"><div class="card chart-card"><canvas id="fcChart"></canvas></div><div class="card chart-card"><canvas id="phChart"></canvas></div><div class="card chart-card"><canvas id="cyaChart"></canvas></div><div class="card chart-card"><canvas id="taChart"></canvas></div></section>
-    <div class="section-title ledger-header"><div><h2>Full chemistry ledger</h2><p>Edit rows here. Upload a strip photo or Leslie's sheet from your phone to create a saved, photo-backed row.</p></div><div class="controls"><span id="localState" class="local-note"></span><label class="upload-btn" for="photoUpload">Add strip photo</label><input id="photoUpload" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="leslieUpload">Add Leslie's sheet</label><input id="leslieUpload" class="photo-input" type="file" accept="image/*" capture="environment"><button id="resetLocal" class="reset-btn" type="button">Reset local edits</button></div></div><section class="card"><div class="ledger-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Source</th><th>Confidence</th><th>FC</th><th>TC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Copper</th><th>Phosphates</th><th>Notes</th><th>Photo</th><th>Delete</th></tr></thead><tbody id="ledgerRows"></tbody></table></div><div class="footer-note"><code>data.js</code> is seed data only. Local edits, deletes, uploaded photos, and OCR-parsed sheet rows are stored as a browser override in <code>localStorage</code>.</div></section>
+    <div class="section-title ledger-header"><div><h2>Full chemistry ledger</h2><p>Edit rows here. Upload a strip photo or Leslie's sheet from your phone to create a saved, photo-backed row.</p></div><div class="controls"><span id="localState" class="local-note"></span><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"><button id="resetLocal" class="reset-btn" type="button">Reset local edits</button></div></div><section class="card"><div class="ledger-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Source</th><th>Confidence</th><th>FC</th><th>TC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Copper</th><th>Phosphates</th><th>Notes</th><th>Photo</th><th>Delete</th></tr></thead><tbody id="ledgerRows"></tbody></table></div><div class="footer-note"><code>data.js</code> is seed data only. Local edits, deletes, uploaded photos, and OCR-parsed sheet rows are stored as a browser override in <code>localStorage</code>.</div></section>
   </div>
   <div id="photoModal" class="photo-modal" role="dialog" aria-modal="true" aria-labelledby="photoTitle">
     <div class="photo-dialog">
@@ -99,7 +100,23 @@
     }
     function nowParts(){
       const now=new Date();
-      return {date:now.toISOString().slice(0,10),time:now.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})};
+      return dateParts(now);
+    }
+    function dateParts(date){
+      const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');
+      return {date:`${y}-${m}-${d}`,time:date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})};
+    }
+    async function stampFromImage(file){
+      let taken=null;
+      try{
+        const meta=await window.exifr?.parse(file,{pick:['DateTimeOriginal','CreateDate','ModifyDate']});
+        taken=meta?.DateTimeOriginal||meta?.CreateDate||meta?.ModifyDate||null;
+      }catch(err){
+        console.warn('Could not read image metadata',err);
+      }
+      if(!taken&&file.lastModified) taken=new Date(file.lastModified);
+      if(!(taken instanceof Date)||Number.isNaN(taken.getTime())) return {...nowParts(),source:'current time'};
+      return {...dateParts(taken),source:'image metadata'};
     }
     function fileToImage(file){
       return new Promise((resolve,reject)=>{
@@ -200,7 +217,7 @@
         const photo=await compressPhoto(file);
         const sheet=kind==='leslie'?await analyzeLeslieSheet(photo.dataUrl):null;
         const analysis=sheet?.analysis||await analyzePhoto(photo.dataUrl);
-        const stamp=nowParts();
+        const stamp=await stampFromImage(file);
         const parsed=sheet?.values||{};
         const row=normalizeRow({
           id:`photo-${Date.now()}`,
@@ -209,8 +226,8 @@
           source:kind==='leslie'?'Leslie\'s sheet upload':'Phone photo upload',
           confidence:kind==='leslie'?'OCR - review':'Photo - review',
           fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,
-          notes:analysis,
-          analysis,
+          notes:`${analysis} Timestamp source: ${stamp.source}.`,
+          analysis:`${analysis} Timestamp source: ${stamp.source}.`,
           photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}
         },tests.length);
         tests.push(row);
@@ -357,8 +374,10 @@
     }
     function renderAll(){renderLedger(); updateDashboard();}
     document.getElementById('resetLocal').addEventListener('click',resetLocalEdits);
-    document.getElementById('photoUpload').addEventListener('change',event=>handlePhotoUpload(event,'strip'));
-    document.getElementById('leslieUpload').addEventListener('change',event=>handlePhotoUpload(event,'leslie'));
+    document.getElementById('stripCamera').addEventListener('change',event=>handlePhotoUpload(event,'strip'));
+    document.getElementById('stripLibrary').addEventListener('change',event=>handlePhotoUpload(event,'strip'));
+    document.getElementById('leslieCamera').addEventListener('change',event=>handlePhotoUpload(event,'leslie'));
+    document.getElementById('leslieLibrary').addEventListener('change',event=>handlePhotoUpload(event,'leslie'));
     document.getElementById('closePhoto').addEventListener('click',closePhoto);
     document.getElementById('savePhotoNotes').addEventListener('click',savePhotoNotes);
     document.getElementById('photoModal').addEventListener('click',event=>{if(event.target.id==='photoModal') closePhoto();});
