@@ -32,7 +32,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v8</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v9</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -58,7 +58,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v8';
+    const APP_VERSION='v9';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -525,13 +525,19 @@
     }
     function mergeParsedValues(base,extra){
       const merged={...base};
-      Object.entries(extra||{}).forEach(([key,value])=>{if(value!==null&&value!==undefined) merged[key]=value;});
+      const protectedFields=new Set(['fc','tc','ph','ta','ch']);
+      Object.entries(extra||{}).forEach(([key,value])=>{
+        if(value===null||value===undefined) return;
+        if(protectedFields.has(key)&&merged[key]!==null&&merged[key]!==undefined) return;
+        merged[key]=value;
+      });
       return merged;
     }
     function cleanLeslieValues(values){
       const clean={...values};
       if(clean.cya!==null&&clean.cya<10) clean.cya=null;
       if(clean.tds!==null&&clean.tds<100) clean.tds=null;
+      if(clean.iron===null&&(clean.copper!==null||clean.phosphates!==null||clean.tds!==null)) clean.iron=0;
       return clean;
     }
     async function analyzeLeslieSheet(dataUrl){
