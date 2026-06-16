@@ -32,7 +32,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v9</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v10</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -58,7 +58,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v9';
+    const APP_VERSION='v10';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -69,6 +69,7 @@
     const seedTests=(window.POOL_TESTS||[]).map((row,index)=>normalizeRow(row,index));
     let tests=loadTests();
     let activePhotoRowId=null;
+    const editSaveTimers=new Map();
 
     function normalizeRow(row,index){
       const copy={...row};
@@ -126,7 +127,7 @@
         if(!response.ok) return;
         const shared=await response.json();
         if(Array.isArray(shared)){
-          tests=mergeRows(tests,shared);
+          tests=mergeRows(shared,tests);
           renderAll();
         }
       }catch(err){
@@ -184,6 +185,45 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok) throw new Error(payload.error||`Delete failed with ${response.status}`);
       return {ok:true,deleted:payload.deleted};
+    }
+    async function updateSharedRow(row){
+      if(!API_BASE) return {ok:false,reason:'Worker not configured'};
+      const key=getUploadKey();
+      if(!key) return {ok:false,reason:'Missing upload key'};
+      const response=await fetch(`${API_BASE}/row`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-pool-upload-key':key},
+        body:JSON.stringify({row})
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(payload.error||`Row update failed with ${response.status}`);
+      return {ok:true,row:payload.row};
+    }
+    function scheduleSharedEdit(row,delay=700){
+      if(!row?.id) return;
+      clearTimeout(editSaveTimers.get(row.id));
+      editSaveTimers.set(row.id,setTimeout(()=>saveSharedEdit(row),delay));
+    }
+    async function saveSharedEdit(row){
+      if(!row?.id) return;
+      clearTimeout(editSaveTimers.get(row.id));
+      editSaveTimers.delete(row.id);
+      try{
+        document.getElementById('localState').textContent='Saving ledger edit...';
+        const result=await updateSharedRow(row);
+        if(result.ok&&result.row){
+          const accepted=normalizeRow(result.row,tests.length);
+          tests=tests.map(item=>item.id===row.id?{...accepted,photo:item.photo||accepted.photo}:item);
+          persistTests();
+          renderAll();
+        }
+        showUploadNotice('Saved','Ledger edit saved to the shared GitHub ledger.',true);
+      }catch(err){
+        console.error(err);
+        showUploadNotice('Edit saved locally',`Shared ledger update failed: ${err.message}`);
+      }finally{
+        updateLocalState();
+      }
     }
     function resetLocalEdits(){
       if(!confirm('Reset local edits and restore the data.js seed ledger?')) return;
@@ -698,12 +738,21 @@
       input.className=`ledger-input ${numericFields.includes(field)?'num':''} ${field==='notes'?'notes-input':''}`;
       if(fieldTypes[field]&&fieldTypes[field]!=='textarea') input.type=fieldTypes[field];
       if(numericFields.includes(field)){input.step='any'; input.value=row[field]??'';} else input.value=row[field]??'';
-      input.addEventListener('input',()=>{
+      const applyEdit=()=>{
         row[field]=numericFields.includes(field)?toNumberOrNull(input.value):input.value;
         persistTests();
         updateDashboard();
+        scheduleSharedEdit(row);
+      };
+      input.addEventListener('input',()=>{
+        applyEdit();
+        if(field==='date'||field==='time') renderLedger();
       });
-      input.addEventListener('blur',()=>{if(field==='date'||field==='time') renderLedger();});
+      input.addEventListener('change',()=>{
+        applyEdit();
+        if(field==='date'||field==='time') renderLedger();
+      });
+      input.addEventListener('blur',()=>{applyEdit(); saveSharedEdit(row); if(field==='date'||field==='time') renderLedger();});
       return input;
     }
     function renderLedger(){
@@ -768,6 +817,7 @@
       persistTests();
       renderLedger();
       updateDashboard();
+      saveSharedEdit(row);
     }
     function renderAll(){renderLedger(); updateDashboard();}
     document.getElementById('appVersion').textContent=APP_VERSION;

@@ -13,6 +13,9 @@ export default {
       if (url.pathname === "/upload" && request.method === "POST") {
         return await handleUpload(request, env, cors);
       }
+      if (url.pathname === "/row" && request.method === "POST") {
+        return await handleRowUpdate(request, env, cors);
+      }
       if (url.pathname === "/delete" && request.method === "POST") {
         return await handleDelete(request, env, cors);
       }
@@ -65,6 +68,44 @@ async function handleUpload(request, env, cors) {
   );
 
   return json({ ok: true, row: publicRow }, cors);
+}
+
+async function handleRowUpdate(request, env, cors) {
+  const authError = validateUploadKey(request, env, cors);
+  if (authError) return authError;
+
+  const body = await request.json();
+  const row = sanitizeRow(body.row || {});
+  if (!row.id) return json({ error: "Missing row id" }, cors, 400);
+
+  let savedRow = row;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await getGithubJson(env, LEDGER_PATH, []);
+    const ledger = Array.isArray(existing.content) ? existing.content : [];
+    const previous = ledger.find((item) => String(item.id) === String(row.id));
+    savedRow = {
+      ...(previous || {}),
+      ...row,
+      photo: row.photo || previous?.photo || null,
+    };
+    const nextLedger = [savedRow, ...ledger.filter((item) => String(item.id) !== String(row.id))];
+
+    try {
+      await putGithubFile(
+        env,
+        LEDGER_PATH,
+        toBase64(JSON.stringify(nextLedger, null, 2) + "\n"),
+        `Update pool ledger row ${safeName(row.id)}`,
+        existing.sha
+      );
+      return json({ ok: true, row: savedRow }, cors);
+    } catch (error) {
+      if (!isGithubConflict(error) || attempt === 2) throw error;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+
+  return json({ ok: false, error: "Row update failed" }, cors, 500);
 }
 
 async function handleDelete(request, env, cors) {
