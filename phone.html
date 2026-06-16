@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v11</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v12</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v11';
+    const APP_VERSION='v12';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -186,19 +186,78 @@
       const found=Object.entries(values).filter(([,value])=>value!==null&&value!==undefined).map(([key,value])=>`${labels[key]} ${value}`);
       return found.length?`Strip color analysis estimated: ${found.join(', ')}. Review on the dashboard ledger.`:'Strip photo stored, but the colored pads were not clear enough to estimate values.';
     }
+    const stripPalettes={ch:[{value:0,rgb:[33,73,104]},{value:100,rgb:[88,110,162]},{value:250,rgb:[93,70,132]},{value:500,rgb:[122,70,132]},{value:1000,rgb:[86,38,74]}],fc:[{value:0,rgb:[236,213,224]},{value:.5,rgb:[224,188,213]},{value:1,rgb:[209,151,196]},{value:3,rgb:[184,86,161]},{value:5,rgb:[132,48,120]},{value:10,rgb:[88,32,82]}],tc:[{value:0,rgb:[236,219,224]},{value:1,rgb:[222,171,203]},{value:2,rgb:[205,123,188]},{value:6,rgb:[176,78,160]},{value:10,rgb:[130,50,130]},{value:20,rgb:[82,36,90]}],cya:[{value:40,rgb:[235,119,77]},{value:100,rgb:[226,91,91]},{value:150,rgb:[203,70,86]},{value:240,rgb:[159,60,91]}],ta:[{value:40,rgb:[174,190,117]},{value:80,rgb:[138,177,145]},{value:120,rgb:[102,166,156]},{value:180,rgb:[61,145,151]},{value:240,rgb:[37,111,131]}],ph:[{value:6.2,rgb:[230,176,41]},{value:6.8,rgb:[224,122,25]},{value:7.2,rgb:[219,86,25]},{value:7.8,rgb:[195,60,40]},{value:8.4,rgb:[158,41,45]},{value:9,rgb:[101,31,42]}]};
+    function blankStripValues(){return {ch:null,fc:null,tc:null,cya:null,ta:null,ph:null}}
+    function stripValuesFromPads(pads){
+      const values=blankStripValues();
+      if(pads.length<5) return values;
+      const ordered=pads.length>=7
+        ? {ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[4],ta:pads[5],ph:pads[6]}
+        : {ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[3],ta:pads[4],ph:pads[5]||null};
+      Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,stripPalettes[key]).value:null;});
+      return values;
+    }
+    function groupColoredComponents(data,w,h){
+      const size=w*h,mask=new Uint8Array(size),seen=new Uint8Array(size),components=[];
+      for(let y=Math.floor(h*.12);y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b); if(max-min>30&&max>70&&min<242)mask[y*w+x]=1;}
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const start=y*w+x;
+        if(!mask[start]||seen[start])continue;
+        const queue=[start]; seen[start]=1; let qi=0,area=0,minX=x,maxX=x,minY=y,maxY=y,sumX=0,sumY=0,sumR=0,sumG=0,sumB=0;
+        while(qi<queue.length){
+          const p=queue[qi++],px=p%w,py=Math.floor(p/w),di=p*4,r=data[di],g=data[di+1],b=data[di+2];
+          area++; sumX+=px; sumY+=py; sumR+=r; sumG+=g; sumB+=b; minX=Math.min(minX,px); maxX=Math.max(maxX,px); minY=Math.min(minY,py); maxY=Math.max(maxY,py);
+          for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue; const nx=px+dx,ny=py+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; const ni=ny*w+nx; if(mask[ni]&&!seen[ni]){seen[ni]=1; queue.push(ni);}}
+        }
+        const bw=maxX-minX+1,bh=maxY-minY+1;
+        if(area>=14&&area<=3200&&bw>=4&&bh>=4&&bw<=95&&bh<=95)components.push({area,cx:sumX/area,cy:sumY/area,bw,bh,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)]});
+      }
+      return components;
+    }
+    function chooseStripComponents(components,w,h){
+      let best=null;
+      const consider=(mode,angle,bin,group)=>{
+        if(group.length<5||group.length>9)return;
+        const spanX=Math.max(...group.map(c=>c.cx))-Math.min(...group.map(c=>c.cx));
+        const spanY=Math.max(...group.map(c=>c.cy))-Math.min(...group.map(c=>c.cy));
+        const span=mode==='vertical'?spanY:spanX;
+        if(span<Math.min(w,h)*.18)return;
+        const avgY=group.reduce((sum,c)=>sum+c.cy,0)/group.length;
+        const score=group.length*170+span+avgY*.18;
+        if(!best||score>best.score)best={score,mode,angle,bin,group};
+      };
+      for(let deg=-45;deg<=45;deg+=3){
+        const m=Math.tan(deg*Math.PI/180),horizontal=new Map(),vertical=new Map();
+        components.forEach((c,index)=>{
+          const hb=Math.round((c.cy-m*c.cx)/12)*12,vb=Math.round((c.cx-m*c.cy)/12)*12;
+          horizontal.set(hb,[...(horizontal.get(hb)||[]),index]); vertical.set(vb,[...(vertical.get(vb)||[]),index]);
+        });
+        horizontal.forEach((indexes,bin)=>consider('horizontal',deg,bin,indexes.map(i=>components[i])));
+        vertical.forEach((indexes,bin)=>consider('vertical',deg,bin,indexes.map(i=>components[i])));
+      }
+      if(!best)return [];
+      const group=best.group.slice();
+      if(best.mode==='vertical')group.sort((a,b)=>a.cy-b.cy);
+      else group.sort((a,b)=>b.cx-a.cx);
+      return group.map(c=>c.rgb);
+    }
     async function analyzeStripPhoto(dataUrl){
       const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'),w=260,h=Math.max(1,Math.round(img.height*(260/img.width)));
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d',{willReadFrequently:true});
       ctx.drawImage(img,0,0,w,h);
-      const data=ctx.getImageData(0,0,w,h).data,counts=new Array(h).fill(0),sums=Array.from({length:h},()=>[0,0,0,0]);
+      const data=ctx.getImageData(0,0,w,h).data,componentPads=chooseStripComponents(groupColoredComponents(data,w,h),w,h);
+      if(componentPads.length>=5){
+        const values=stripValuesFromPads(componentPads);
+        return {values,analysis:`Strip color analysis estimated ${componentPads.length} pads: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
+      }
+      const counts=new Array(h).fill(0),sums=Array.from({length:h},()=>[0,0,0,0]);
       for(let y=0;y<h;y++)for(let x=Math.floor(w*.62);x<w-4;x++){const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b); if(max-min>38&&max>70&&min<230){counts[y]++; sums[y][0]+=r; sums[y][1]+=g; sums[y][2]+=b; sums[y][3]++;}}
       const smooth=counts.map((_,i)=>counts.slice(Math.max(0,i-2),Math.min(h,i+3)).reduce((a,b)=>a+b,0)/5),threshold=Math.max(4,Math.max(...smooth)*.22),segments=[];
       for(let y=0;y<h;y++){if(smooth[y]<=threshold)continue; const start=y; while(y<h&&smooth[y]>threshold)y++; const end=y-1; if(end-start>=4)segments.push({start,end,weight:smooth.slice(start,end+1).reduce((a,b)=>a+b,0)});}
       const pads=segments.sort((a,b)=>b.weight-a.weight).slice(0,8).sort((a,b)=>a.start-b.start).map(seg=>{const sum=[0,0,0,0]; for(let y=seg.start;y<=seg.end;y++){sum[0]+=sums[y][0]; sum[1]+=sums[y][1]; sum[2]+=sums[y][2]; sum[3]+=sums[y][3];} return [Math.round(sum[0]/sum[3]),Math.round(sum[1]/sum[3]),Math.round(sum[2]/sum[3])];}).filter(color=>color.every(Number.isFinite));
-      const palettes={ch:[{value:0,rgb:[33,73,104]},{value:100,rgb:[88,110,162]},{value:250,rgb:[93,70,132]},{value:500,rgb:[122,70,132]},{value:1000,rgb:[86,38,74]}],fc:[{value:0,rgb:[236,213,224]},{value:.5,rgb:[224,188,213]},{value:1,rgb:[209,151,196]},{value:3,rgb:[184,86,161]},{value:5,rgb:[132,48,120]},{value:10,rgb:[88,32,82]}],tc:[{value:0,rgb:[236,219,224]},{value:1,rgb:[222,171,203]},{value:2,rgb:[205,123,188]},{value:6,rgb:[176,78,160]},{value:10,rgb:[130,50,130]},{value:20,rgb:[82,36,90]}],cya:[{value:40,rgb:[235,119,77]},{value:100,rgb:[226,91,91]},{value:150,rgb:[203,70,86]},{value:240,rgb:[159,60,91]}],ta:[{value:40,rgb:[174,190,117]},{value:80,rgb:[138,177,145]},{value:120,rgb:[102,166,156]},{value:180,rgb:[61,145,151]},{value:240,rgb:[37,111,131]}],ph:[{value:6.2,rgb:[230,176,41]},{value:6.8,rgb:[224,122,25]},{value:7.2,rgb:[219,86,25]},{value:7.8,rgb:[195,60,40]},{value:8.4,rgb:[158,41,45]},{value:9,rgb:[101,31,42]}]};
-      const ordered={ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[4]||pads[3],ta:pads[5]||pads[4],ph:pads[6]||pads[5]},values={};
-      Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,palettes[key]).value:null;});
+      if(pads.length<5) return {values:blankStripValues(),analysis:`Strip photo stored, but only ${pads.length} color pad${pads.length===1?' was':'s were'} detected. Review the photo and enter values on the dashboard ledger.`};
+      const values=stripValuesFromPads(pads);
       return {values,analysis:summarizeStrip(values)};
     }
     async function handleUpload(event,kind){
