@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=19">Dashboard</a><span id="appVersion" class="version">v19</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=20">Dashboard</a><span id="appVersion" class="version">v20</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v19';
+    const APP_VERSION='v20';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -269,7 +269,6 @@
     function stripMaskPixel(r,g,b){
       const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
       if(max<45||avg>248||chroma<12)return false;
-      if(r>150&&g>95&&b>70&&r>g+28&&g>b+16)return false;
       return chroma/Math.max(1,max)>.055;
     }
     function meanColor(data,w,h,cx,cy,radius){
@@ -282,6 +281,79 @@
         }
       }
       return sum[3]?[0,1,2].map(k=>Math.round(sum[k]/sum[3])):pixelAt(data,w,Math.round(cx),Math.round(cy));
+    }
+    function isStripWhite(r,g,b){
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3;
+      return avg>170&&max-min<48;
+    }
+    function isPadColor(r,g,b){
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+      return avg>55&&avg<242&&chroma>12&&chroma/Math.max(1,max)>.055&&!isStripWhite(r,g,b);
+    }
+    function rowSegmentsFromSignal(signal,minHeight,maxHeight){
+      const maxSignal=Math.max(...signal),threshold=Math.max(.045,maxSignal*.32),segments=[];
+      for(let y=0;y<signal.length;y++){
+        if(signal[y]<threshold)continue;
+        const start=y;
+        while(y<signal.length&&signal[y]>=threshold)y++;
+        const end=y-1,height=end-start+1,weight=signal.slice(start,end+1).reduce((a,b)=>a+b,0);
+        if(height>=minHeight&&height<=maxHeight)segments.push({start,end,weight});
+      }
+      return segments;
+    }
+    function findStripPadsInWhiteBand(data,w,h){
+      const counts=new Array(w).fill(0);
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        if(isStripWhite(data[i],data[i+1],data[i+2]))counts[x]++;
+      }
+      const smooth=counts.map((_,i)=>counts.slice(Math.max(0,i-4),Math.min(w,i+5)).reduce((a,b)=>a+b,0)/9),threshold=Math.max(h*.18,Math.max(...smooth)*.45),bands=[];
+      for(let x=0;x<w;x++){
+        if(smooth[x]<threshold)continue;
+        const start=x;
+        while(x<w&&smooth[x]>=threshold)x++;
+        const end=x-1,width=end-start+1,score=smooth.slice(start,end+1).reduce((a,b)=>a+b,0);
+        if(width>=18&&width<=Math.min(180,w*.55))bands.push({start,end,width,score});
+      }
+      const band=bands.sort((a,b)=>b.score-a.score)[0];
+      if(!band)return null;
+      const padX0=Math.max(0,band.start-4),padX1=Math.min(w-1,band.end+4),rowSignal=new Array(h).fill(0),rowSums=Array.from({length:h},()=>[0,0,0,0]);
+      for(let y=0;y<h;y++){
+        for(let x=padX0;x<=padX1;x++){
+          const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+          if(isPadColor(r,g,b)){rowSignal[y]++; rowSums[y][0]+=r; rowSums[y][1]+=g; rowSums[y][2]+=b; rowSums[y][3]++;}
+        }
+        rowSignal[y]/=(padX1-padX0+1);
+      }
+      const smoothRows=rowSignal.map((_,i)=>rowSignal.slice(Math.max(0,i-5),Math.min(h,i+6)).reduce((a,b)=>a+b,0)/11);
+      let segments=rowSegmentsFromSignal(smoothRows,Math.max(8,Math.round(h*.012)),Math.max(28,Math.round(h*.13)));
+      if(segments.length<5)return null;
+      segments=segments.map(seg=>{
+        const sum=[0,0,0,0];
+        for(let y=seg.start;y<=seg.end;y++){sum[0]+=rowSums[y][0]; sum[1]+=rowSums[y][1]; sum[2]+=rowSums[y][2]; sum[3]+=rowSums[y][3];}
+        return {...seg,y:(seg.start+seg.end)/2,rgb:[0,1,2].map(k=>Math.round(sum[k]/Math.max(1,sum[3])))};
+      }).sort((a,b)=>a.start-b.start);
+      const topSeg=segments.filter(seg=>seg.y<h*.45).sort((a,b)=>purpleScore(b.rgb)-purpleScore(a.rgb))[0];
+      const bottomSeg=segments.filter(seg=>seg.y>h*.55).sort((a,b)=>orangeScore(b.rgb)-orangeScore(a.rgb))[0];
+      if(!topSeg||!bottomSeg||bottomSeg.y-topSeg.y<h*.35)return null;
+      const top=topSeg.y,bottom=bottomSeg.y,step=(bottom-top)/6,halfY=Math.max(10,Math.min(48,step*.26)),sampleX0=Math.round(padX0+(padX1-padX0)*.18),sampleX1=Math.round(padX1-(padX1-padX0)*.18);
+      const pads=[];
+      for(let n=0;n<7;n++){
+        const cy=top+step*n,sum=[0,0,0,0];
+        for(let y=Math.max(0,Math.round(cy-halfY));y<=Math.min(h-1,Math.round(cy+halfY));y++)for(let x=sampleX0;x<=sampleX1;x++){
+          const i=(y*w+x)*4; sum[0]+=data[i]; sum[1]+=data[i+1]; sum[2]+=data[i+2]; sum[3]++;
+        }
+        pads.push({x:(sampleX0+sampleX1)/2,y:cy,w:sampleX1-sampleX0+1,h:halfY*2,rgb:[0,1,2].map(k=>Math.round(sum[k]/Math.max(1,sum[3])))});
+      }
+      if(orangeScore(pads[0].rgb)>orangeScore(pads[6].rgb))pads.reverse();
+      return {pads,band:{x0:padX0,x1:padX1,y0:Math.max(0,Math.round(top-halfY*2)),y1:Math.min(h-1,Math.round(bottom+halfY*2))}};
+    }
+    function makeWhiteBandPreview(sourceCanvas,candidate){
+      const out=document.createElement('canvas'),ctx=out.getContext('2d'),band=candidate.band,pad=18,sw=Math.max(1,band.x1-band.x0+1+pad*2),sh=Math.max(1,band.y1-band.y0+1);
+      out.width=160; out.height=640;
+      ctx.fillStyle='#f5fbff'; ctx.fillRect(0,0,out.width,out.height);
+      ctx.drawImage(sourceCanvas,Math.max(0,band.x0-pad),band.y0,Math.min(sourceCanvas.width,sw),sh,0,0,out.width,out.height);
+      return out.toDataURL('image/jpeg',.9);
     }
     function findColorComponents(data,w,h){
       const stride=w,mask=new Uint8Array(w*h),seen=new Uint8Array(w*h),components=[];
@@ -304,7 +376,7 @@
           }
         }
         const bw=maxX-minX+1,bh=maxY-minY+1,area=bw*bh,fill=count/area,aspect=bw/bh;
-        if(count<10||count>3500||bw<3||bh<3||aspect<.25||aspect>4||fill<.12)continue;
+        if(count<10||count>20000||bw<3||bh<3||aspect<.25||aspect>4||fill<.12)continue;
         components.push({x:sx/count,y:sy/count,w:bw,h:bh,area:count,rgb:[Math.round(sr/count),Math.round(sg/count),Math.round(sb/count)]});
       }
       return components;
@@ -449,7 +521,12 @@
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d',{willReadFrequently:true});
       ctx.drawImage(img,0,0,w,h);
-      const data=ctx.getImageData(0,0,w,h).data,colorRun=findStripPadsByColor(data,w,h);
+      const data=ctx.getImageData(0,0,w,h).data,whiteBand=findStripPadsInWhiteBand(data,w,h);
+      if(whiteBand){
+        const pads=whiteBand.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),previewDataUrl=makeWhiteBandPreview(canvas,whiteBand);
+        return {values,previewDataUrl,analysis:`Strip was found from the white strip body and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
+      }
+      const colorRun=findStripPadsByColor(data,w,h);
       if(colorRun){
         const pads=colorRun.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),previewDataUrl=makePadPreview(canvas,colorRun);
         return {values,previewDataUrl,analysis:`Strip was found by color pads and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};

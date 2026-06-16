@@ -30,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-main"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1></div><div class="hero-actions"><span><a class="pill pill-link" href="phone.html?v=19">Data Upload Page</a><span id="appVersion" class="version-note">v19</span></span></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></section>
+    <section class="hero"><div class="hero-main"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1></div><div class="hero-actions"><span><a class="pill pill-link" href="phone.html?v=20">Data Upload Page</a><span id="appVersion" class="version-note">v20</span></span></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -56,7 +56,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v19';
+    const APP_VERSION='v20';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
