@@ -32,7 +32,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v7</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v8</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -58,7 +58,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v7';
+    const APP_VERSION='v8';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -386,7 +386,7 @@
     const leslieResultOrder=['fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds'];
     const leslieValidators={
       fc:v=>v>=0&&v<=20,tc:v=>v>=0&&v<=20,ph:v=>v>=6&&v<=10,ta:v=>v>=40&&v<=400,ch:v=>v>=40&&v<=1200,
-      cya:v=>v>=0&&v<=300,iron:v=>v>=0&&v<=10,copper:v=>v>=0&&v<=10,phosphates:v=>v>=0&&v<=10000,tds:v=>v>=0&&v<=10000
+      cya:v=>v>=10&&v<=300,iron:v=>v>=0&&v<=10,copper:v=>v>=0&&v<=10,phosphates:v=>v>=0&&v<=10000,tds:v=>v>=100&&v<=10000
     };
     function applyLeslieSequence(values, sequence, offset=0){
       leslieResultOrder.slice(offset).forEach((key,index)=>{
@@ -405,8 +405,14 @@
           }
         }
       }
-      if(numbers.length>=7) applyLeslieSequence(values,numbers.slice(-7),3);
-      if(numbers.length>=5) applyLeslieSequence(values,numbers.slice(-5),5);
+      if(numbers.length>=7){
+        const slice=numbers.slice(-7),keys=leslieResultOrder.slice(3);
+        if(keys.every((key,index)=>leslieValidators[key](slice[index]))) applyLeslieSequence(values,slice,3);
+      }
+      if(numbers.length>=5){
+        const slice=numbers.slice(-5),keys=leslieResultOrder.slice(5);
+        if(keys.every((key,index)=>leslieValidators[key](slice[index]))) applyLeslieSequence(values,slice,5);
+      }
       return values;
     }
     async function cropDataUrl(dataUrl,crop){
@@ -421,9 +427,9 @@
     }
     async function readLeslieResultColumn(dataUrl){
       const crops=[
-        {x:.60,y:.34,w:.32,h:.46},
-        {x:.64,y:.36,w:.25,h:.44},
-        {x:.56,y:.38,w:.34,h:.42}
+        {x:.64,y:.30,w:.30,h:.47},
+        {x:.66,y:.315,w:.26,h:.445},
+        {x:.68,y:.32,w:.22,h:.435}
       ];
       let best=[];
       for(const crop of crops){
@@ -437,6 +443,47 @@
         }
       }
       return valuesFromLeslieSequence(best);
+    }
+    function firstValidCellValue(text,key){
+      const numbers=extractNumbers(text,leslieValidators[key]);
+      if(!numbers.length) return null;
+      if(key==='cya'){
+        const likely=numbers.find(value=>value>=10&&value<=150);
+        if(likely!==undefined) return likely;
+      }
+      if(key==='phosphates'){
+        const likely=numbers.find(value=>value>=50&&value<=5000);
+        if(likely!==undefined) return likely;
+      }
+      if(key==='tds'){
+        const likely=numbers.find(value=>value>=100&&value<=10000);
+        if(likely!==undefined) return likely;
+      }
+      return numbers[numbers.length-1];
+    }
+    async function readLeslieResultCells(dataUrl){
+      const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null]));
+      const layouts=[
+        {x:.66,y:.315,w:.26,h:.445},
+        {x:.68,y:.32,w:.22,h:.435},
+        {x:.64,y:.305,w:.30,h:.46}
+      ];
+      for(const layout of layouts){
+        const rowH=layout.h/10;
+        for(let index=0;index<leslieResultOrder.length;index++){
+          const key=leslieResultOrder[index];
+          if(values[key]!==null) continue;
+          const crop={x:layout.x,y:layout.y+(rowH*index),w:layout.w,h:rowH*1.12};
+          try{
+            const cropped=await cropDataUrl(dataUrl,crop);
+            const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '});
+            values[key]=firstValidCellValue(result.data?.text||'',key);
+          }catch(err){
+            console.warn('Leslie result-cell OCR failed',err);
+          }
+        }
+      }
+      return values;
     }
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
@@ -481,6 +528,12 @@
       Object.entries(extra||{}).forEach(([key,value])=>{if(value!==null&&value!==undefined) merged[key]=value;});
       return merged;
     }
+    function cleanLeslieValues(values){
+      const clean={...values};
+      if(clean.cya!==null&&clean.cya<10) clean.cya=null;
+      if(clean.tds!==null&&clean.tds<100) clean.tds=null;
+      return clean;
+    }
     async function analyzeLeslieSheet(dataUrl){
       if(!window.Tesseract?.recognize) return {values:{},analysis:'Leslie sheet stored. OCR library was not available, so enter the values in the editable cells.'};
       try{
@@ -488,6 +541,8 @@
         const result=await Tesseract.recognize(dataUrl,'eng');
         let values=parseLeslieText(result.data?.text||'');
         values=mergeParsedValues(values,await readLeslieResultColumn(dataUrl));
+        values=mergeParsedValues(values,await readLeslieResultCells(dataUrl));
+        values=cleanLeslieValues(values);
         return {values,analysis:describeParsedValues(values)};
       }catch(err){
         console.warn('Leslie OCR failed',err);
