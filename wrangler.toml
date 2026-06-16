@@ -1,0 +1,9 @@
+name = "pool-chemical-uploader"
+main = "worker/src/index.js"
+compatibility_date = "2026-06-15"
+
+[vars]
+GITHUB_OWNER = "CaptainSeanG"
+GITHUB_REPO = "Pool"
+GITHUB_BRANCH = "main"
+ALLOWED_ORIGIN = "https://captainseang.github.io"

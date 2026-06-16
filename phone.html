@@ -6,6 +6,7 @@
   <title>Pool Phone Upload</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+  <script src="app-config.js"></script>
   <style>
     :root{--bg1:#04182d;--bg2:#0c3f6a;--bg3:#0f6da7;--card:rgba(255,255,255,.12);--border:rgba(255,255,255,.14);--text:#ebf8ff;--muted:#b9d9ee;--good:#5fe0a2;--shadow:0 18px 50px rgba(0,0,0,.28)}
     *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(circle at 15% 6%,rgba(105,210,255,.2),transparent 24%),linear-gradient(180deg,var(--bg1),var(--bg2) 45%,var(--bg3));min-height:100vh}
@@ -32,6 +33,9 @@
   <script src="data.js"></script>
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
+    const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
+    const API_BASE=(window.POOL_API_BASE||'').replace(/\/+$/,'');
+    const SHARED_LEDGER_URL='ledger.json';
     const numericFields=['fc','tc','ph','ta','ch','cya','copper','phosphates'];
     const fmt=(v,s='')=>v===null||v===undefined||v===''?'-':`${v}${s}`;
     const toNumberOrNull=value=>{if(value===null||value===undefined||value==='')return null; const parsed=Number(value); return Number.isFinite(parsed)?parsed:null};
@@ -50,12 +54,42 @@
       try{const saved=localStorage.getItem(STORAGE_KEY); if(saved) return JSON.parse(saved).map((row,index)=>normalizeRow(row,index));}catch(err){console.warn(err)}
       return seedTests.map(row=>({...row}));
     }
+    function mergeRows(...groups){
+      const map=new Map();
+      groups.flat().forEach((row,index)=>map.set(row.id||`row-${index}`,normalizeRow(row,index)));
+      return [...map.values()];
+    }
+    async function loadSharedLedger(){
+      try{
+        const response=await fetch(`${SHARED_LEDGER_URL}?v=${Date.now()}`,{cache:'no-store'});
+        if(!response.ok) return;
+        const shared=await response.json();
+        if(Array.isArray(shared)){tests=mergeRows(tests,shared); renderAll();}
+      }catch(err){console.warn(err)}
+    }
     function persistTests(){localStorage.setItem(STORAGE_KEY,JSON.stringify(tests))}
     function showNotice(title,text,autoClose=false){
       document.getElementById('noticeTitle').textContent=title;
       document.getElementById('noticeText').textContent=text;
       document.getElementById('notice').classList.add('open');
       if(autoClose) setTimeout(()=>document.getElementById('notice').classList.remove('open'),1900);
+    }
+    function getUploadKey(){
+      let key=localStorage.getItem(UPLOAD_KEY_STORAGE)||'';
+      if(!key&&API_BASE){
+        key=prompt('Enter the pool upload key for this iPhone:')||'';
+        if(key) localStorage.setItem(UPLOAD_KEY_STORAGE,key);
+      }
+      return key;
+    }
+    async function uploadSharedRow(row){
+      if(!API_BASE) return {ok:false,reason:'Worker not configured'};
+      const key=getUploadKey();
+      if(!key) return {ok:false,reason:'Missing upload key'};
+      const response=await fetch(`${API_BASE}/upload`,{method:'POST',headers:{'Content-Type':'application/json','x-pool-upload-key':key},body:JSON.stringify({row,photo:row.photo})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(payload.error||`Upload failed with ${response.status}`);
+      return {ok:true,row:payload.row};
     }
     function sortedTests(){
       return [...tests].sort((a,b)=>{
@@ -114,8 +148,22 @@
         const parsed=sheet?.values||{};
         const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:kind==='leslie'?'OCR - review':'Photo - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
-        document.getElementById('uploadStatus').textContent=`Saved ${row.source} for ${row.date} ${row.time}.`;
-        showNotice('Accepted results',`${row.source} was added for ${row.date} ${row.time}. Open the dashboard on this same device/browser to see it in the ledger.`,true);
+        let accepted=row,sharedMessage='Saved locally on this device.';
+        try{
+          const shared=await uploadSharedRow(row);
+          if(shared.ok&&shared.row){
+            accepted=normalizeRow(shared.row,tests.length);
+            tests=tests.map(item=>item.id===row.id?accepted:item);
+            persistTests();
+            renderAll();
+            sharedMessage='Saved to GitHub shared ledger.';
+          }
+        }catch(err){
+          console.error(err);
+          sharedMessage=`Saved locally, but GitHub upload failed: ${err.message}`;
+        }
+        document.getElementById('uploadStatus').textContent=`${sharedMessage} ${accepted.source} for ${accepted.date} ${accepted.time}.`;
+        showNotice(sharedMessage.startsWith('Saved to GitHub')?'Accepted results':'Saved locally',`${accepted.source} was added for ${accepted.date} ${accepted.time}. ${sharedMessage}`,true);
       }catch(err){console.error(err); document.getElementById('notice').classList.remove('open'); document.getElementById('uploadStatus').textContent='Could not save that image. Try a smaller or clearer photo.'}
     }
     function polar(cx,cy,r,a){const rad=(a-90)*Math.PI/180; return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)}}
@@ -144,6 +192,7 @@
     document.getElementById('leslieCamera').addEventListener('change',event=>handleUpload(event,'leslie'));
     document.getElementById('leslieLibrary').addEventListener('change',event=>handleUpload(event,'leslie'));
     renderAll();
+    loadSharedLedger();
   </script>
 </body>
 </html>
