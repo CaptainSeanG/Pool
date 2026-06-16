@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v17';
+    const APP_VERSION='v18';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -266,6 +266,100 @@
       return values;
     }
     function pixelAt(data,w,x,y){const i=(Math.max(0,Math.min(w-1,x|0))+Math.max(0,y|0)*w)*4; return [data[i],data[i+1],data[i+2]]}
+    function stripMaskPixel(r,g,b){
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+      if(max<45||avg>248||chroma<12)return false;
+      if(r>150&&g>95&&b>70&&r>g+28&&g>b+16)return false;
+      return chroma/Math.max(1,max)>.055;
+    }
+    function meanColor(data,w,h,cx,cy,radius){
+      const sum=[0,0,0,0],r2=radius*radius;
+      for(let y=Math.max(0,Math.floor(cy-radius));y<=Math.min(h-1,Math.ceil(cy+radius));y++){
+        for(let x=Math.max(0,Math.floor(cx-radius));x<=Math.min(w-1,Math.ceil(cx+radius));x++){
+          if((x-cx)**2+(y-cy)**2>r2)continue;
+          const i=(y*w+x)*4,rr=data[i],gg=data[i+1],bb=data[i+2];
+          if(stripMaskPixel(rr,gg,bb)){sum[0]+=rr; sum[1]+=gg; sum[2]+=bb; sum[3]++;}
+        }
+      }
+      return sum[3]?[0,1,2].map(k=>Math.round(sum[k]/sum[3])):pixelAt(data,w,Math.round(cx),Math.round(cy));
+    }
+    function findColorComponents(data,w,h){
+      const stride=w,mask=new Uint8Array(w*h),seen=new Uint8Array(w*h),components=[];
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4; if(stripMaskPixel(data[i],data[i+1],data[i+2]))mask[y*stride+x]=1;}
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const start=y*stride+x;
+        if(!mask[start]||seen[start])continue;
+        const stack=[start]; seen[start]=1;
+        let count=0,sx=0,sy=0,sr=0,sg=0,sb=0,minX=x,maxX=x,minY=y,maxY=y;
+        while(stack.length){
+          const p=stack.pop(),px=p%stride,py=(p/stride)|0,di=p*4;
+          count++; sx+=px; sy+=py; sr+=data[di]; sg+=data[di+1]; sb+=data[di+2];
+          if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py;
+          const neighbors=[p-1,p+1,p-stride,p+stride];
+          for(const n of neighbors){
+            if(n<0||n>=mask.length||seen[n]||!mask[n])continue;
+            const nx=n%stride;
+            if(Math.abs(nx-px)>1)continue;
+            seen[n]=1; stack.push(n);
+          }
+        }
+        const bw=maxX-minX+1,bh=maxY-minY+1,area=bw*bh,fill=count/area,aspect=bw/bh;
+        if(count<10||count>3500||bw<3||bh<3||aspect<.25||aspect>4||fill<.12)continue;
+        components.push({x:sx/count,y:sy/count,w:bw,h:bh,area:count,rgb:[Math.round(sr/count),Math.round(sg/count),Math.round(sb/count)]});
+      }
+      return components;
+    }
+    function linePadCandidate(comps,a,b,data,w,h){
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+      if(len<80)return null;
+      const ux=dx/len,uy=dy/len,nx=-uy,ny=ux,tol=Math.max(10,Math.min(18,len*.045));
+      let items=comps.map(c=>({...c,t:(c.x-a.x)*ux+(c.y-a.y)*uy,d:Math.abs((c.x-a.x)*nx+(c.y-a.y)*ny)})).filter(c=>c.d<=tol);
+      if(items.length<7)return null;
+      items.sort((m,n)=>m.t-n.t);
+      let best=null;
+      for(let i=0;i<=items.length-7;i++){
+        const run=items.slice(i,i+7),span=run[6].t-run[0].t;
+        if(span<95)continue;
+        const gaps=run.slice(1).map((c,j)=>c.t-run[j].t),avgGap=gaps.reduce((s,g)=>s+g,0)/6;
+        if(avgGap<12||avgGap>95)continue;
+        const gapNoise=Math.sqrt(gaps.reduce((s,g)=>s+(g-avgGap)**2,0)/6)/avgGap;
+        if(gapNoise>.42)continue;
+        const avgArea=run.reduce((s,c)=>s+c.area,0)/7,areaNoise=Math.sqrt(run.reduce((s,c)=>s+(c.area-avgArea)**2,0)/7)/avgArea;
+        if(areaNoise>.95)continue;
+        const centerPenalty=run.reduce((s,c)=>s+c.d,0)/7,score=span-gapNoise*180-areaNoise*60-centerPenalty*3+avgArea*.08;
+        if(!best||score>best.score)best={pads:run,ux,uy,nx,ny,score,span,avgGap};
+      }
+      if(!best)return null;
+      const start=best.pads[0],end=best.pads[6];
+      best.reversed=orangeScore(start.rgb)>orangeScore(end.rgb)||purpleScore(end.rgb)>purpleScore(start.rgb)+12;
+      best.pads=(best.reversed?best.pads.slice().reverse():best.pads).map(p=>({...p,rgb:meanColor(data,w,h,p.x,p.y,Math.max(7,Math.min(18,(p.w+p.h)/2*.55)))}));
+      return best;
+    }
+    function purpleScore(rgb){return (rgb[0]+rgb[2])*.5-rgb[1]+Math.max(0,rgb[2]-rgb[1])*.35}
+    function orangeScore(rgb){return rgb[0]*1.35-rgb[1]*.55-rgb[2]*.8}
+    function findStripPadsByColor(data,w,h){
+      const comps=findColorComponents(data,w,h).sort((a,b)=>b.area-a.area).slice(0,90);
+      let best=null;
+      for(let i=0;i<comps.length;i++)for(let j=i+1;j<comps.length;j++){
+        const candidate=linePadCandidate(comps,comps[i],comps[j],data,w,h);
+        if(candidate&&(!best||candidate.score>best.score))best=candidate;
+      }
+      return best;
+    }
+    function makePadPreview(sourceCanvas,candidate){
+      const out=document.createElement('canvas'),ctx=out.getContext('2d'),pads=candidate.pads,first=pads[0],last=pads[6];
+      out.width=140; out.height=620;
+      const dx=last.x-first.x,dy=last.y-first.y,len=Math.max(1,Math.hypot(dx,dy)),ux=dx/len,uy=dy/len,nx=-uy,ny=ux,padSize=Math.max(...pads.map(p=>Math.max(p.w,p.h))),width=Math.max(52,padSize*2.8),top=-padSize*1.4,bottom=len+padSize*1.4;
+      ctx.fillStyle='#f5fbff'; ctx.fillRect(0,0,out.width,out.height);
+      for(let y=0;y<out.height;y++){
+        const t=top+(bottom-top)*(y/out.height);
+        for(let x=0;x<out.width;x++){
+          const off=(x/out.width-.5)*width,sx=Math.max(0,Math.min(sourceCanvas.width-1,first.x+t*ux+off*nx)),sy=Math.max(0,Math.min(sourceCanvas.height-1,first.y+t*uy+off*ny));
+          ctx.drawImage(sourceCanvas,sx,sy,1,1,x,y,1,1);
+        }
+      }
+      return out.toDataURL('image/jpeg',.9);
+    }
     function lineBounds(w,h,ux,uy,nx,ny,p){
       const ts=[];
       if(Math.abs(ux)>1e-6){[0,w-1].forEach(x=>{const t=(x-p*nx)/ux,y=t*uy+p*ny; if(y>=0&&y<h)ts.push(t);});}
@@ -351,23 +445,16 @@
       return out.toDataURL('image/jpeg',.9);
     }
     async function analyzeStripPhoto(dataUrl){
-      const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'),w=Math.min(700,img.width),h=Math.max(1,Math.round(img.height*(Math.min(700,img.width)/img.width)));
+      const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'),w=Math.min(720,img.width),h=Math.max(1,Math.round(img.height*(Math.min(720,img.width)/img.width)));
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d',{willReadFrequently:true});
       ctx.drawImage(img,0,0,w,h);
-      const data=ctx.getImageData(0,0,w,h).data,line=findStripLine(data,w,h);
-      if(line){
-        const pads=sampleStripPads(data,w,h,line),values=stripValuesFromPads(pads),previewDataUrl=makeStripPreview(canvas,line);
-        return {values,previewDataUrl,analysis:`Strip was rotated/cropped and sampled in 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
+      const data=ctx.getImageData(0,0,w,h).data,colorRun=findStripPadsByColor(data,w,h);
+      if(colorRun){
+        const pads=colorRun.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),previewDataUrl=makePadPreview(canvas,colorRun);
+        return {values,previewDataUrl,analysis:`Strip was found by color pads and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
       }
-      const counts=new Array(h).fill(0),sums=Array.from({length:h},()=>[0,0,0,0]);
-      for(let y=0;y<h;y++)for(let x=Math.floor(w*.62);x<w-4;x++){const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b); if(max-min>38&&max>70&&min<230){counts[y]++; sums[y][0]+=r; sums[y][1]+=g; sums[y][2]+=b; sums[y][3]++;}}
-      const smooth=counts.map((_,i)=>counts.slice(Math.max(0,i-2),Math.min(h,i+3)).reduce((a,b)=>a+b,0)/5),threshold=Math.max(4,Math.max(...smooth)*.22),segments=[];
-      for(let y=0;y<h;y++){if(smooth[y]<=threshold)continue; const start=y; while(y<h&&smooth[y]>threshold)y++; const end=y-1; if(end-start>=4)segments.push({start,end,weight:smooth.slice(start,end+1).reduce((a,b)=>a+b,0)});}
-      const pads=segments.sort((a,b)=>b.weight-a.weight).slice(0,8).sort((a,b)=>a.start-b.start).map(seg=>{const sum=[0,0,0,0]; for(let y=seg.start;y<=seg.end;y++){sum[0]+=sums[y][0]; sum[1]+=sums[y][1]; sum[2]+=sums[y][2]; sum[3]+=sums[y][3];} return [Math.round(sum[0]/sum[3]),Math.round(sum[1]/sum[3]),Math.round(sum[2]/sum[3])];}).filter(color=>color.every(Number.isFinite));
-      if(pads.length<5) return {values:blankStripValues(),analysis:`Strip photo stored, but only ${pads.length} color pad${pads.length===1?' was':'s were'} detected. Review the photo and enter values on the dashboard ledger.`};
-      const values=stripValuesFromPads(pads);
-      return {values,analysis:summarizeStrip(values)};
+      return {values:blankStripValues(),analysis:'Strip photo saved, but seven color pads were not confidently detected. Try a closer strip-only photo with the pads centered.'};
     }
     async function handleUpload(event,kind){
       const file=event.target.files?.[0]; event.target.value=''; if(!file)return;
@@ -384,7 +471,12 @@
         }
         const sheetHasValues=sheet&&Object.values(sheet.values||{}).some(value=>value!==null&&value!==undefined);
         if(kind==='strip'){
-          strip={values:{},analysis:'Strip photo saved for manual review. On-phone strip analysis is temporarily disabled to keep uploads stable.'};
+          try{
+            strip=await analyzeStripPhoto(photo.dataUrl);
+          }catch(err){
+            console.warn('Strip analysis failed, saving photo anyway',err);
+            strip={values:{},analysis:'Strip photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
+          }
         }else{
           try{
             strip=sheet&&!sheetHasValues?await analyzeStrip(photo.dataUrl):null;
