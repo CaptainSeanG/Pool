@@ -70,7 +70,7 @@ function sanitizeRow(row) {
   const clean = {};
   const fields = [
     "id", "date", "time", "source", "confidence", "fc", "tc", "ph", "ta", "ch",
-    "cya", "copper", "phosphates", "notes", "analysis"
+    "cya", "iron", "copper", "phosphates", "tds", "notes", "analysis"
   ];
   for (const field of fields) clean[field] = row[field] ?? null;
   clean.id = String(clean.id || `upload-${Date.now()}`);
@@ -80,7 +80,7 @@ function sanitizeRow(row) {
   clean.confidence = clean.confidence ? String(clean.confidence) : "Review";
   clean.notes = clean.notes ? String(clean.notes) : "";
   clean.analysis = clean.analysis ? String(clean.analysis) : "";
-  for (const field of ["fc", "tc", "ph", "ta", "ch", "cya", "copper", "phosphates"]) {
+  for (const field of ["fc", "tc", "ph", "ta", "ch", "cya", "iron", "copper", "phosphates", "tds"]) {
     clean[field] = clean[field] === null || clean[field] === "" ? null : Number(clean[field]);
     if (!Number.isFinite(clean[field])) clean[field] = null;
   }

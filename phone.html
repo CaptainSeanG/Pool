@@ -37,7 +37,7 @@
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
-    const numericFields=['fc','tc','ph','ta','ch','cya','copper','phosphates'];
+    const numericFields=['fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds'];
     const fmt=(v,s='')=>v===null||v===undefined||v===''?'-':`${v}${s}`;
     const toNumberOrNull=value=>{if(value===null||value===undefined||value==='')return null; const parsed=Number(value); return Number.isFinite(parsed)?parsed:null};
     const seedTests=(window.POOL_TESTS||[]).map((row,index)=>normalizeRow(row,index));
@@ -126,10 +126,10 @@
     function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractResultNumberFromLine(line,validator); if(value!==null)return value} return null}
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-      return {fc:findOcrValue(lines,/(free chlorine|free available chlorine|\bfac\b)/i,v=>v<=20),tc:findOcrValue(lines,/(total chlorine|\btc\b)/i,v=>v<=20),ph:findOcrValue(lines,/(^|\s)ph(\s|$|:)/i,v=>v>=6&&v<=10),ta:findOcrValue(lines,/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400),ch:findOcrValue(lines,/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200),cya:findOcrValue(lines,/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300),copper:findOcrValue(lines,/copper/i,v=>v<=10),phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000)};
+      return {fc:findOcrValue(lines,/(free chlorine|free available chlorine|\bfac\b)/i,v=>v<=20),tc:findOcrValue(lines,/(total chlorine|\btc\b)/i,v=>v<=20),ph:findOcrValue(lines,/(^|\s)ph(\s|$|:)/i,v=>v>=6&&v<=10),ta:findOcrValue(lines,/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400),ch:findOcrValue(lines,/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200),cya:findOcrValue(lines,/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300),iron:findOcrValue(lines,/iron/i,v=>v<=10),copper:findOcrValue(lines,/copper/i,v=>v<=10),phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000),tds:findOcrValue(lines,/(^|\s)tds(\s|$|:)/i,v=>v<=10000)};
     }
     function describeParsedValues(values){
-      const labels={fc:'FC',tc:'TC',ph:'pH',ta:'TA',ch:'CH',cya:'CYA',copper:'Copper',phosphates:'Phosphates'};
+      const labels={fc:'FC',tc:'TC',ph:'pH',ta:'TA',ch:'CH',cya:'CYA',iron:'Iron',copper:'Copper',phosphates:'Phosphates',tds:'TDS'};
       const found=Object.entries(values).filter(([,value])=>value!==null).map(([key,value])=>`${labels[key]} ${value}`);
       return found.length?`OCR parsed: ${found.join(', ')}. Review on the dashboard ledger.`:'OCR did not confidently find chemistry numbers. The image is stored; enter values on the dashboard ledger.';
     }
@@ -182,7 +182,7 @@
         const strip=kind==='strip'||(sheet&&!sheetHasValues)?await analyzeStrip(photo.dataUrl):null;
         const analysis=sheetHasValues?sheet.analysis:strip.analysis;
         const parsed=sheetHasValues?sheet.values:strip.values;
-        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
+        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
         let accepted=row,sharedMessage='Saved locally on this device.';
         try{

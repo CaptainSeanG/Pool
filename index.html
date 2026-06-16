@@ -41,7 +41,7 @@
     <div class="section-title"><h2>What needs attention?</h2><p>Action items are based on the most recent data point.</p></div>
     <section class="grid advice-grid"><div class="card"><div class="metric-label">Action plan</div><div id="actions" class="advice-list"></div></div><div class="card"><div class="metric-label">Low-drama routine</div><div class="action"><div>H2O</div><div><strong>Evening chlorine dosing</strong><small>Top up liquid chlorine in the evening when FC trends low. That keeps more sanitizer in the water instead of donating it to the sun.</small></div></div><div class="action"><div>Test</div><div><strong>Use store tests as anchor points</strong><small>Daily strips are great for trend lines. Leslie's tests are your higher-confidence checkpoints.</small></div></div><div class="action"><div>Easy</div><div><strong>Do not over-correct</strong><small>When the water is clear and FC/pH are close, the smartest move is often to leave it alone.</small></div></div></div></section>
     <div class="section-title"><h2>Trend charts</h2><p>History over time, so problems show up before the pool gets weird.</p></div><section class="grid chart-grid"><div class="card chart-card"><canvas id="fcChart"></canvas></div><div class="card chart-card"><canvas id="phChart"></canvas></div><div class="card chart-card"><canvas id="cyaChart"></canvas></div><div class="card chart-card"><canvas id="taChart"></canvas></div></section>
-    <div class="section-title ledger-header"><div><h2>Full chemistry ledger</h2><p>Edit rows here. Upload a strip photo or Leslie's sheet from your phone to create a saved, photo-backed row.</p></div><div class="controls"><span id="localState" class="local-note"></span><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"><button id="resetLocal" class="reset-btn" type="button">Reset local edits</button></div></div><section class="card"><div class="ledger-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Source</th><th>Confidence</th><th>FC</th><th>TC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Copper</th><th>Phosphates</th><th>Notes</th><th>Photo</th><th>Delete</th></tr></thead><tbody id="ledgerRows"></tbody></table></div><div class="footer-note"><code>data.js</code> is seed data only. Local edits, deletes, uploaded photos, and OCR-parsed sheet rows are stored as a browser override in <code>localStorage</code>.</div></section>
+    <div class="section-title ledger-header"><div><h2>Full chemistry ledger</h2><p>Edit rows here. Upload a strip photo or Leslie's sheet from your phone to create a saved, photo-backed row.</p></div><div class="controls"><span id="localState" class="local-note"></span><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"><button id="resetLocal" class="reset-btn" type="button">Reset local edits</button></div></div><section class="card"><div class="ledger-wrap"><table><thead><tr><th>Date</th><th>Time</th><th>Source</th><th>Confidence</th><th>FC</th><th>TC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Iron</th><th>Copper</th><th>Phosphates</th><th>TDS</th><th>Notes</th><th>Photo</th><th>Delete</th></tr></thead><tbody id="ledgerRows"></tbody></table></div><div class="footer-note"><code>data.js</code> is seed data only. Local edits, deletes, uploaded photos, and OCR-parsed sheet rows are stored as a browser override in <code>localStorage</code>.</div></section>
   </div>
   <div id="photoModal" class="photo-modal" role="dialog" aria-modal="true" aria-labelledby="photoTitle">
     <div class="photo-dialog">
@@ -61,8 +61,8 @@
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
     const DASH='-';
-    const numericFields=['fc','tc','ph','ta','ch','cya','copper','phosphates'];
-    const fieldTypes={date:'date',time:'text',source:'text',confidence:'text',fc:'number',tc:'number',ph:'number',ta:'number',ch:'number',cya:'number',copper:'number',phosphates:'number',notes:'textarea'};
+    const numericFields=['fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds'];
+    const fieldTypes={date:'date',time:'text',source:'text',confidence:'text',fc:'number',tc:'number',ph:'number',ta:'number',ch:'number',cya:'number',iron:'number',copper:'number',phosphates:'number',tds:'number',notes:'textarea'};
     const charts={};
     const seedTests=(window.POOL_TESTS||[]).map((row,index)=>normalizeRow(row,index));
     let tests=loadTests();
@@ -312,13 +312,15 @@
         ta:findOcrValue(lines,/(total alkalinity|alkalinity|\bta\b)/i,v=>v<=400),
         ch:findOcrValue(lines,/(calcium hardness|hardness|\bch\b)/i,v=>v<=1200),
         cya:findOcrValue(lines,/(cyanuric acid|stabilizer|\bcya\b)/i,v=>v<=300),
+        iron:findOcrValue(lines,/iron/i,v=>v<=10),
         copper:findOcrValue(lines,/copper/i,v=>v<=10),
-        phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000)
+        phosphates:findOcrValue(lines,/(phosphates|phosphate)/i,v=>v<=10000),
+        tds:findOcrValue(lines,/(^|\s)tds(\s|$|:)/i,v=>v<=10000)
       };
       return values;
     }
     function describeParsedValues(values){
-      const labels={fc:'FC',tc:'TC',ph:'pH',ta:'TA',ch:'CH',cya:'CYA',copper:'Copper',phosphates:'Phosphates'};
+      const labels={fc:'FC',tc:'TC',ph:'pH',ta:'TA',ch:'CH',cya:'CYA',iron:'Iron',copper:'Copper',phosphates:'Phosphates',tds:'TDS'};
       const found=Object.entries(values).filter(([,value])=>value!==null).map(([key,value])=>`${labels[key]} ${value}`);
       return found.length?`OCR parsed: ${found.join(', ')}. Review the editable cells against the attached sheet.`:'OCR did not confidently find chemistry numbers. The sheet is stored; enter the values in the editable cells.';
     }
@@ -355,7 +357,7 @@
           time:stamp.time,
           source:kind==='leslie'?'Leslie\'s sheet upload':'Phone photo upload',
           confidence:sheetHasValues?'OCR - review':'Photo analysis - review',
-          fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,
+          fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,
           notes:`${analysis} Timestamp source: ${stamp.source}.`,
           analysis:`${analysis} Timestamp source: ${stamp.source}.`,
           photo:{dataUrl:photo.dataUrl,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}
@@ -489,7 +491,7 @@
       const body=document.getElementById('ledgerRows'); body.replaceChildren();
       sortedTests().slice().reverse().forEach(row=>{
         const tr=document.createElement('tr');
-        ['date','time','source','confidence','fc','tc','ph','ta','ch','cya','copper','phosphates','notes'].forEach(field=>{const td=document.createElement('td'); td.appendChild(makeInput(row,field)); tr.appendChild(td)});
+        ['date','time','source','confidence','fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds','notes'].forEach(field=>{const td=document.createElement('td'); td.appendChild(makeInput(row,field)); tr.appendChild(td)});
         const photoTd=document.createElement('td');
         const photoBtn=document.createElement('button'); photoBtn.className='photo-btn'; photoBtn.type='button'; photoBtn.title=row.photo?'Open photo':'No photo for this row'; photoBtn.setAttribute('aria-label',row.photo?'Open photo':'No photo for this row'); photoBtn.innerHTML='&#128247;';
         if(row.photo){photoBtn.addEventListener('click',()=>openPhoto(row.id));} else photoBtn.disabled=true;
