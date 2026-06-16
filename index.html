@@ -32,7 +32,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v6</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1><p class="subtitle">Bottle-true chemistry dials. The fulcrum sits at the bottom center and each needle points to the real current value on the same scale your test bottle uses.</p><div class="pill-row"><div class="pill">12,000-gal PebbleTec pool</div><div class="pill">Bottle-color gauges</div><div class="pill">Store tests + strip estimates</div><div class="pill">Charts + full ledger</div><span><a class="pill pill-link" href="phone.html">Phone upload page</a><span id="appVersion" class="version-note">v7</span></span></div></div><div><div class="card" style="width:min(100%,360px);margin-left:auto;"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="footer-note" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2><p>Needles point at the actual current reading, not an idealized center point.</p></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -58,7 +58,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v6';
+    const APP_VERSION='v7';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -383,6 +383,61 @@
         if(candidates[occurrence]!==undefined) values[key]=candidates[occurrence];
       });
     }
+    const leslieResultOrder=['fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds'];
+    const leslieValidators={
+      fc:v=>v>=0&&v<=20,tc:v=>v>=0&&v<=20,ph:v=>v>=6&&v<=10,ta:v=>v>=40&&v<=400,ch:v=>v>=40&&v<=1200,
+      cya:v=>v>=0&&v<=300,iron:v=>v>=0&&v<=10,copper:v=>v>=0&&v<=10,phosphates:v=>v>=0&&v<=10000,tds:v=>v>=0&&v<=10000
+    };
+    function applyLeslieSequence(values, sequence, offset=0){
+      leslieResultOrder.slice(offset).forEach((key,index)=>{
+        const value=sequence[index];
+        if(value!==undefined&&leslieValidators[key](value)) values[key]=value;
+      });
+    }
+    function valuesFromLeslieSequence(numbers){
+      const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null]));
+      if(numbers.length>=10){
+        for(let start=0;start<=numbers.length-10;start++){
+          const slice=numbers.slice(start,start+10);
+          if(leslieResultOrder.every((key,index)=>leslieValidators[key](slice[index]))){
+            applyLeslieSequence(values,slice,0);
+            return values;
+          }
+        }
+      }
+      if(numbers.length>=7) applyLeslieSequence(values,numbers.slice(-7),3);
+      if(numbers.length>=5) applyLeslieSequence(values,numbers.slice(-5),5);
+      return values;
+    }
+    async function cropDataUrl(dataUrl,crop){
+      const img=await imageFromDataUrl(dataUrl);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.width*crop.w));
+      canvas.height=Math.max(1,Math.round(img.height*crop.h));
+      const ctx=canvas.getContext('2d');
+      ctx.filter='grayscale(1) contrast(1.8)';
+      ctx.drawImage(img,img.width*crop.x,img.height*crop.y,img.width*crop.w,img.height*crop.h,0,0,canvas.width,canvas.height);
+      return canvas.toDataURL('image/png');
+    }
+    async function readLeslieResultColumn(dataUrl){
+      const crops=[
+        {x:.60,y:.34,w:.32,h:.46},
+        {x:.64,y:.36,w:.25,h:.44},
+        {x:.56,y:.38,w:.34,h:.42}
+      ];
+      let best=[];
+      for(const crop of crops){
+        try{
+          const cropped=await cropDataUrl(dataUrl,crop);
+          const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '});
+          const numbers=extractNumbers(result.data?.text||'',v=>v>=0&&v<=10000);
+          if(numbers.length>best.length) best=numbers;
+        }catch(err){
+          console.warn('Leslie result-column OCR failed',err);
+        }
+      }
+      return valuesFromLeslieSequence(best);
+    }
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
@@ -421,12 +476,18 @@
       const found=Object.entries(values).filter(([,value])=>value!==null).map(([key,value])=>`${labels[key]} ${value}`);
       return found.length?`OCR parsed: ${found.join(', ')}. Review the editable cells against the attached sheet.`:'OCR did not confidently find chemistry numbers. The sheet is stored; enter the values in the editable cells.';
     }
+    function mergeParsedValues(base,extra){
+      const merged={...base};
+      Object.entries(extra||{}).forEach(([key,value])=>{if(value!==null&&value!==undefined) merged[key]=value;});
+      return merged;
+    }
     async function analyzeLeslieSheet(dataUrl){
       if(!window.Tesseract?.recognize) return {values:{},analysis:'Leslie sheet stored. OCR library was not available, so enter the values in the editable cells.'};
       try{
         document.getElementById('localState').textContent='Reading Leslie sheet...';
         const result=await Tesseract.recognize(dataUrl,'eng');
-        const values=parseLeslieText(result.data?.text||'');
+        let values=parseLeslieText(result.data?.text||'');
+        values=mergeParsedValues(values,await readLeslieResultColumn(dataUrl));
         return {values,analysis:describeParsedValues(values)};
       }catch(err){
         console.warn('Leslie OCR failed',err);
