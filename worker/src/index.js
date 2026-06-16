@@ -43,6 +43,11 @@ async function handleUpload(request, env, cors) {
   const imagePath = `uploads/${date}/${id}.${ext}`;
 
   await putGithubFile(env, imagePath, match[2], `Add pool test image ${id}`);
+  const processed = parseImageDataUrl(photo.processedDataUrl || "");
+  const processedPath = processed ? `uploads/${date}/${id}-strip.${processed.ext}` : "";
+  if (processed) {
+    await putGithubFile(env, processedPath, processed.base64, `Add pool test strip crop ${id}`);
+  }
 
   const existing = await getGithubJson(env, LEDGER_PATH, []);
   const ledger = Array.isArray(existing.content) ? existing.content : [];
@@ -56,6 +61,8 @@ async function handleUpload(request, env, cors) {
       width: photo.width || null,
       height: photo.height || null,
       uploadedAt: photo.uploadedAt || new Date().toISOString(),
+      processedPath: processedPath || null,
+      processedUrl: processedPath || null,
     },
   };
   const nextLedger = [publicRow, ...ledger.filter((item) => item.id !== publicRow.id)];
@@ -68,6 +75,13 @@ async function handleUpload(request, env, cors) {
   );
 
   return json({ ok: true, row: publicRow }, cors);
+}
+
+function parseImageDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+  if (!match) return null;
+  const ext = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+  return { ext, base64: match[2] };
 }
 
 async function handleRowUpdate(request, env, cors) {
