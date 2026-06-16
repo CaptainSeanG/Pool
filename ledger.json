@@ -1,31 +1,5 @@
 [
   {
-    "id": "photo-1781582032310",
-    "date": "2026-06-15",
-    "time": "8:53 PM",
-    "source": "Phone strip photo",
-    "confidence": "Photo analysis - review",
-    "fc": 1,
-    "tc": 1,
-    "ph": 9,
-    "ta": 40,
-    "ch": 500,
-    "cya": 40,
-    "copper": null,
-    "phosphates": null,
-    "notes": "Strip color analysis estimated: CH 500, FC 1, TC 1, CYA 40, TA 40, pH 9. Review on the dashboard ledger.",
-    "analysis": "Strip color analysis estimated: CH 500, FC 1, TC 1, CYA 40, TA 40, pH 9. Review on the dashboard ledger.",
-    "photo": {
-      "path": "uploads/2026-06-15/photo-1781582032310.jpg",
-      "url": "uploads/2026-06-15/photo-1781582032310.jpg",
-      "name": "image.jpg",
-      "type": "image/jpeg",
-      "width": 1050,
-      "height": 1400,
-      "uploadedAt": "2026-06-16T03:53:52.310Z"
-    }
-  },
-  {
     "id": "photo-1781581489087",
     "date": "2026-06-15",
     "time": "8:44 PM",
