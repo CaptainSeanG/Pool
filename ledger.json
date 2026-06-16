@@ -1,5 +1,33 @@
 [
   {
+    "id": "photo-1781598433355",
+    "date": "2026-06-15",
+    "time": "7:04 PM",
+    "source": "Phone strip photo",
+    "confidence": "Photo analysis - review",
+    "fc": 3,
+    "tc": null,
+    "ph": null,
+    "ta": null,
+    "ch": 500,
+    "cya": null,
+    "iron": null,
+    "copper": null,
+    "phosphates": null,
+    "tds": null,
+    "notes": "Strip color analysis estimated: CH 500, FC 3. Review on the dashboard ledger.",
+    "analysis": "Strip color analysis estimated: CH 500, FC 3. Review on the dashboard ledger.",
+    "photo": {
+      "path": "uploads/2026-06-15/photo-1781598433355.jpg",
+      "url": "uploads/2026-06-15/photo-1781598433355.jpg",
+      "name": "IMG_4261.jpeg",
+      "type": "image/jpeg",
+      "width": 1050,
+      "height": 1400,
+      "uploadedAt": "2026-06-16T08:27:13.355Z"
+    }
+  },
+  {
     "id": "photo-1781597683339",
     "date": "2026-06-15",
     "time": "9:08 PM",
