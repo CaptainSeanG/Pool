@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v12</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v13</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v12';
+    const APP_VERSION='v13';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -192,14 +192,14 @@
       const values=blankStripValues();
       if(pads.length<5) return values;
       const ordered=pads.length>=7
-        ? {ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[4],ta:pads[5],ph:pads[6]}
-        : {ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[3],ta:pads[4],ph:pads[5]||null};
+        ? {ch:pads[0],fc:pads[1],tc:pads[3],cya:pads[4],ta:pads[5],ph:pads[6]}
+        : {ch:pads[0],fc:pads[1],tc:null,cya:pads[3]||null,ta:pads[4]||null,ph:pads[5]||null};
       Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,stripPalettes[key]).value:null;});
       return values;
     }
     function groupColoredComponents(data,w,h){
       const size=w*h,mask=new Uint8Array(size),seen=new Uint8Array(size),components=[];
-      for(let y=Math.floor(h*.12);y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b); if(max-min>30&&max>70&&min<242)mask[y*w+x]=1;}
+      for(let y=Math.floor(h*.12);y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b); if(max-min>18&&max>70&&min<246&&!(r>210&&g>210&&b>210))mask[y*w+x]=1;}
       for(let y=0;y<h;y++)for(let x=0;x<w;x++){
         const start=y*w+x;
         if(!mask[start]||seen[start])continue;
@@ -210,7 +210,7 @@
           for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue; const nx=px+dx,ny=py+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue; const ni=ny*w+nx; if(mask[ni]&&!seen[ni]){seen[ni]=1; queue.push(ni);}}
         }
         const bw=maxX-minX+1,bh=maxY-minY+1;
-        if(area>=14&&area<=3200&&bw>=4&&bh>=4&&bw<=95&&bh<=95)components.push({area,cx:sumX/area,cy:sumY/area,bw,bh,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)]});
+        if(area>=18&&area<=4200&&bw>=4&&bh>=4&&bw<=115&&bh<=115)components.push({area,cx:sumX/area,cy:sumY/area,bw,bh,rgb:[Math.round(sumR/area),Math.round(sumG/area),Math.round(sumB/area)]});
       }
       return components;
     }
@@ -239,10 +239,12 @@
       const group=best.group.slice();
       if(best.mode==='vertical')group.sort((a,b)=>a.cy-b.cy);
       else group.sort((a,b)=>b.cx-a.cx);
+      const blueMinusRed=color=>color[2]-color[0];
+      if(group.length>1&&blueMinusRed(group[0].rgb)<blueMinusRed(group[group.length-1].rgb)) group.reverse();
       return group.map(c=>c.rgb);
     }
     async function analyzeStripPhoto(dataUrl){
-      const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'),w=260,h=Math.max(1,Math.round(img.height*(260/img.width)));
+      const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'),w=Math.min(700,img.width),h=Math.max(1,Math.round(img.height*(Math.min(700,img.width)/img.width)));
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d',{willReadFrequently:true});
       ctx.drawImage(img,0,0,w,h);
