@@ -26,33 +26,5 @@
       "height": 1400,
       "uploadedAt": "2026-06-16T08:14:43.339Z"
     }
-  },
-  {
-    "id": "photo-1781596908941",
-    "date": "2026-06-15",
-    "time": "9:08 PM",
-    "source": "Leslie's sheet upload",
-    "confidence": "OCR - review",
-    "fc": 3.88,
-    "tc": 7,
-    "ph": 8,
-    "ta": 119,
-    "ch": 170,
-    "cya": 44,
-    "iron": null,
-    "copper": 0.3,
-    "phosphates": 553,
-    "tds": 800,
-    "notes": "OCR parsed: FC 3.88, TC 7, pH 8, TA 119, CH 170, CYA 44, Copper 0.3, Phosphates 553, TDS 800. Review on the dashboard ledger.",
-    "analysis": "OCR parsed: FC 3.88, TC 7, pH 8, TA 119, CH 170, CYA 44, Copper 0.3, Phosphates 553, TDS 800. Review on the dashboard ledger.",
-    "photo": {
-      "path": "uploads/2026-06-15/photo-1781596908941.jpg",
-      "url": "uploads/2026-06-15/photo-1781596908941.jpg",
-      "name": "IMG_4264.jpeg",
-      "type": "image/jpeg",
-      "width": 1050,
-      "height": 1400,
-      "uploadedAt": "2026-06-16T08:01:48.941Z"
-    }
   }
 ]
