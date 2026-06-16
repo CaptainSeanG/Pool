@@ -1,0 +1,28 @@
+[
+  {
+    "id": "photo-1781581489087",
+    "date": "2026-06-15",
+    "time": "8:44 PM",
+    "source": "Leslie's sheet upload",
+    "confidence": "OCR - review",
+    "fc": null,
+    "tc": null,
+    "ph": null,
+    "ta": null,
+    "ch": null,
+    "cya": null,
+    "copper": null,
+    "phosphates": null,
+    "notes": "OCR did not confidently find chemistry numbers. The image is stored; enter values on the dashboard ledger.",
+    "analysis": "OCR did not confidently find chemistry numbers. The image is stored; enter values on the dashboard ledger.",
+    "photo": {
+      "path": "uploads/2026-06-15/photo-1781581489087.jpg",
+      "url": "uploads/2026-06-15/photo-1781581489087.jpg",
+      "name": "image.jpg",
+      "type": "image/jpeg",
+      "width": 1050,
+      "height": 1400,
+      "uploadedAt": "2026-06-16T03:44:49.087Z"
+    }
+  }
+]
