@@ -220,6 +220,75 @@
         img.src=dataUrl;
       });
     }
+    function imageFromDataUrl(dataUrl){
+      return new Promise((resolve,reject)=>{
+        const img=new Image();
+        img.onload=()=>resolve(img);
+        img.onerror=reject;
+        img.src=dataUrl;
+      });
+    }
+    function colorDistance(a,b){
+      const as=a[0]+a[1]+a[2],bs=b[0]+b[1]+b[2];
+      const an=a.map(v=>v/as),bn=b.map(v=>v/bs);
+      return Math.hypot((an[0]-bn[0])*2.2,(an[1]-bn[1])*2.2,(an[2]-bn[2])*2.2,(a[0]-b[0])/420,(a[1]-b[1])/420,(a[2]-b[2])/420);
+    }
+    function closestPaletteValue(color,palette){
+      return palette.reduce((best,item)=>{
+        const score=colorDistance(color,item.rgb);
+        return score<best.score?{...item,score}:best;
+      },{value:null,score:Infinity});
+    }
+    function summarizeStrip(values){
+      const labels={ch:'CH',fc:'FC',tc:'TC',cya:'CYA',ta:'TA',ph:'pH'};
+      const found=Object.entries(values).filter(([,value])=>value!==null&&value!==undefined).map(([key,value])=>`${labels[key]} ${value}`);
+      return found.length?`Strip color analysis estimated: ${found.join(', ')}. Review the editable cells against the attached photo.`:'Strip photo stored, but the colored pads were not clear enough to estimate values.';
+    }
+    async function analyzeStripPhoto(dataUrl){
+      const img=await imageFromDataUrl(dataUrl);
+      const canvas=document.createElement('canvas'),w=260,h=Math.max(1,Math.round(img.height*(260/img.width)));
+      canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(img,0,0,w,h);
+      const data=ctx.getImageData(0,0,w,h).data;
+      const counts=new Array(h).fill(0),sums=Array.from({length:h},()=>[0,0,0,0]);
+      for(let y=0;y<h;y++){
+        for(let x=Math.floor(w*.62);x<w-4;x++){
+          const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b);
+          if(max-min>38&&max>70&&min<230){
+            counts[y]++;
+            sums[y][0]+=r; sums[y][1]+=g; sums[y][2]+=b; sums[y][3]++;
+          }
+        }
+      }
+      const smooth=counts.map((_,i)=>counts.slice(Math.max(0,i-2),Math.min(h,i+3)).reduce((a,b)=>a+b,0)/5);
+      const threshold=Math.max(4,Math.max(...smooth)*.22);
+      const segments=[];
+      for(let y=0;y<h;y++){
+        if(smooth[y]<=threshold) continue;
+        const start=y;
+        while(y<h&&smooth[y]>threshold) y++;
+        const end=y-1;
+        if(end-start>=4) segments.push({start,end,weight:smooth.slice(start,end+1).reduce((a,b)=>a+b,0)});
+      }
+      const pads=segments.sort((a,b)=>b.weight-a.weight).slice(0,8).sort((a,b)=>a.start-b.start).map(seg=>{
+        const sum=[0,0,0,0];
+        for(let y=seg.start;y<=seg.end;y++){sum[0]+=sums[y][0]; sum[1]+=sums[y][1]; sum[2]+=sums[y][2]; sum[3]+=sums[y][3];}
+        return [Math.round(sum[0]/sum[3]),Math.round(sum[1]/sum[3]),Math.round(sum[2]/sum[3])];
+      }).filter(color=>color.every(Number.isFinite));
+      const palettes={
+        ch:[{value:0,rgb:[33,73,104]},{value:100,rgb:[88,110,162]},{value:250,rgb:[93,70,132]},{value:500,rgb:[122,70,132]},{value:1000,rgb:[86,38,74]}],
+        fc:[{value:0,rgb:[236,213,224]},{value:.5,rgb:[224,188,213]},{value:1,rgb:[209,151,196]},{value:3,rgb:[184,86,161]},{value:5,rgb:[132,48,120]},{value:10,rgb:[88,32,82]}],
+        tc:[{value:0,rgb:[236,219,224]},{value:1,rgb:[222,171,203]},{value:2,rgb:[205,123,188]},{value:6,rgb:[176,78,160]},{value:10,rgb:[130,50,130]},{value:20,rgb:[82,36,90]}],
+        cya:[{value:40,rgb:[235,119,77]},{value:100,rgb:[226,91,91]},{value:150,rgb:[203,70,86]},{value:240,rgb:[159,60,91]}],
+        ta:[{value:40,rgb:[174,190,117]},{value:80,rgb:[138,177,145]},{value:120,rgb:[102,166,156]},{value:180,rgb:[61,145,151]},{value:240,rgb:[37,111,131]}],
+        ph:[{value:6.2,rgb:[230,176,41]},{value:6.8,rgb:[224,122,25]},{value:7.2,rgb:[219,86,25]},{value:7.8,rgb:[195,60,40]},{value:8.4,rgb:[158,41,45]},{value:9,rgb:[101,31,42]}]
+      };
+      const ordered={ch:pads[0],fc:pads[1],tc:pads[2],cya:pads[4]||pads[3],ta:pads[5]||pads[4],ph:pads[6]||pads[5]};
+      const values={};
+      Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,palettes[key]).value:null;});
+      return {values,analysis:summarizeStrip(values)};
+    }
     function extractNumberFromLine(line){
       const match=line.replace(/,/g,'').match(/(?:^|[^0-9.])([0-9]+(?:\.[0-9]+)?)(?![0-9.])/);
       return match?toNumberOrNull(match[1]):null;
@@ -273,15 +342,17 @@
         showUploadNotice('Processing upload','Reading the image, saving the photo, and preparing the ledger row.');
         const photo=await compressPhoto(file);
         const sheet=kind==='leslie'?await analyzeLeslieSheet(photo.dataUrl):null;
-        const analysis=sheet?.analysis||await analyzePhoto(photo.dataUrl);
+        const sheetHasValues=sheet&&Object.values(sheet.values||{}).some(value=>value!==null&&value!==undefined);
+        const strip=kind==='strip'||(sheet&&!sheetHasValues)?await analyzeStripPhoto(photo.dataUrl):null;
+        const analysis=sheetHasValues?sheet.analysis:(strip?.analysis||await analyzePhoto(photo.dataUrl));
         const stamp=await stampFromImage(file);
-        const parsed=sheet?.values||{};
+        const parsed=sheetHasValues?sheet.values:(strip?.values||{});
         const row=normalizeRow({
           id:`photo-${Date.now()}`,
           date:stamp.date,
           time:stamp.time,
           source:kind==='leslie'?'Leslie\'s sheet upload':'Phone photo upload',
-          confidence:kind==='leslie'?'OCR - review':'Photo - review',
+          confidence:sheetHasValues?'OCR - review':'Photo analysis - review',
           fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,
           notes:`${analysis} Timestamp source: ${stamp.source}.`,
           analysis:`${analysis} Timestamp source: ${stamp.source}.`,
