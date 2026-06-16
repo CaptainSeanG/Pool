@@ -1,33 +1,5 @@
 [
   {
-    "id": "photo-1781627589641",
-    "date": "2026-06-16",
-    "time": "5:58 AM",
-    "source": "Phone strip photo",
-    "confidence": "Photo analysis - review",
-    "fc": null,
-    "tc": null,
-    "ph": null,
-    "ta": null,
-    "ch": null,
-    "cya": null,
-    "iron": null,
-    "copper": null,
-    "phosphates": null,
-    "tds": null,
-    "notes": "Strip photo stored, but only 2 color pads were detected. Review the photo and enter values on the dashboard ledger.",
-    "analysis": "Strip photo stored, but only 2 color pads were detected. Review the photo and enter values on the dashboard ledger.",
-    "photo": {
-      "path": "uploads/2026-06-16/photo-1781627589641.jpg",
-      "url": "uploads/2026-06-16/photo-1781627589641.jpg",
-      "name": "IMG_4271.jpeg",
-      "type": "image/jpeg",
-      "width": 1400,
-      "height": 1050,
-      "uploadedAt": "2026-06-16T16:33:09.641Z"
-    }
-  },
-  {
     "id": "photo-1781621136417",
     "date": "2026-06-16",
     "time": "5:59 AM",
