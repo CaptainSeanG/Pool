@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v15</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html">Dashboard</a><span id="appVersion" class="version">v16</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v15';
+    const APP_VERSION='v16';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -69,7 +69,19 @@
         if(Array.isArray(shared)){tests=mergeRows(tests,shared); renderAll();}
       }catch(err){console.warn(err)}
     }
-    function persistTests(){localStorage.setItem(STORAGE_KEY,JSON.stringify(tests))}
+    function stripLocalPhotoData(row){
+      if(!row?.photo) return row;
+      const {dataUrl,processedDataUrl,...photo}=row.photo;
+      return {...row,photo};
+    }
+    function persistTests(){
+      try{
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(tests));
+      }catch(err){
+        console.warn('Local photo cache was too large; saving lightweight rows only',err);
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(tests.map(stripLocalPhotoData)));
+      }
+    }
     function showNotice(title,text,autoClose=false){
       document.getElementById('noticeTitle').textContent=title;
       document.getElementById('noticeText').textContent=text;
@@ -315,11 +327,15 @@
           sheet={values:{},analysis:'Sheet photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
         }
         const sheetHasValues=sheet&&Object.values(sheet.values||{}).some(value=>value!==null&&value!==undefined);
-        try{
-          strip=kind==='strip'||(sheet&&!sheetHasValues)?await analyzeStrip(photo.dataUrl):null;
-        }catch(err){
-          console.warn('Strip analysis failed, saving photo anyway',err);
-          strip={values:{},analysis:'Strip photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
+        if(kind==='strip'){
+          strip={values:{},analysis:'Strip photo saved for manual review. On-phone strip analysis is temporarily disabled to keep uploads stable.'};
+        }else{
+          try{
+            strip=sheet&&!sheetHasValues?await analyzeStrip(photo.dataUrl):null;
+          }catch(err){
+            console.warn('Strip analysis failed, saving photo anyway',err);
+            strip={values:{},analysis:'Strip photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
+          }
         }
         const analysis=sheetHasValues?sheet.analysis:(strip?.analysis||'Photo saved. Review the photo and enter values on the dashboard ledger.');
         const parsed=sheetHasValues?sheet.values:(strip?.values||{});
