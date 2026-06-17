@@ -30,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-main"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1></div><div class="hero-actions"><span><a class="pill pill-link" href="phone.html?v=24">Data Upload Page</a><span id="appVersion" class="version-note">v24</span></span></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></section>
+    <section class="hero"><div class="hero-main"><div><div class="kicker">Sean's backyard pool lab</div><h1>Pool chemistry dashboard</h1></div><div class="hero-actions"><span><a class="pill pill-link" href="phone.html?v=25">Data Upload Page</a><span id="appVersion" class="version-note">v25</span></span></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -38,7 +38,7 @@
     <section class="grid perfect-grid"><div class="card target-card"><h3>FC</h3><div class="target-range">3-6 ppm</div><div class="target-note">Around 3-4 is a comfortable target.</div></div><div class="card target-card"><h3>pH</h3><div class="target-range">7.4-7.6</div><div class="target-note">A touch below 7.8 is a nice place to live.</div></div><div class="card target-card"><h3>TA</h3><div class="target-range">70-100</div><div class="target-note">80-90 is usually calm and stable.</div></div><div class="card target-card"><h3>CH</h3><div class="target-range">250-400</div><div class="target-note">PebbleTec usually wants more calcium than vinyl.</div></div><div class="card target-card"><h3>CYA</h3><div class="target-range">30-50</div><div class="target-note">Keeps chlorine protected without getting lazy.</div></div></section>
     <div class="section-title"><h2>What needs attention?</h2><p>Action items are based on the most recent data point.</p></div>
     <section class="grid advice-grid"><div class="card"><div class="metric-label">Action plan</div><div id="actions" class="advice-list"></div></div><div class="card"><div class="metric-label">Low-drama routine</div><div class="action"><div>H2O</div><div><strong>Evening chlorine dosing</strong><small>Top up liquid chlorine in the evening when FC trends low. That keeps more sanitizer in the water instead of donating it to the sun.</small></div></div><div class="action"><div>Test</div><div><strong>Use store tests as anchor points</strong><small>Daily strips are great for trend lines. Leslie's tests are your higher-confidence checkpoints.</small></div></div><div class="action"><div>Easy</div><div><strong>Do not over-correct</strong><small>When the water is clear and FC/pH are close, the smartest move is often to leave it alone.</small></div></div></div></section>
-    <div class="section-title"><h2>Trend charts</h2><p>History over time</p></div><section class="grid chart-grid"><div class="card chart-card"><canvas id="fcChart"></canvas></div><div class="card chart-card"><canvas id="phChart"></canvas></div><div class="card chart-card"><canvas id="cyaChart"></canvas></div><div class="card chart-card"><canvas id="taChart"></canvas></div></section>
+    <div class="section-title"><h2>Trend charts</h2><p>History over time</p></div><section class="grid chart-grid"><div class="card chart-card"><canvas id="chChart"></canvas></div><div class="card chart-card"><canvas id="fcChart"></canvas></div><div class="card chart-card"><canvas id="tcChart"></canvas></div><div class="card chart-card"><canvas id="cyaChart"></canvas></div><div class="card chart-card"><canvas id="taChart"></canvas></div><div class="card chart-card"><canvas id="phChart"></canvas></div></section>
     <div class="section-title ledger-header"><div><h2>Full chemistry ledger</h2></div><span id="localState" class="local-note" hidden></span></div><section class="card"><div class="ledger-wrap"><div id="ledgerRows" class="ledger-list"></div></div></section>
   </div>
   <div id="photoModal" class="photo-modal" role="dialog" aria-modal="true" aria-labelledby="photoTitle">
@@ -57,7 +57,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v24';
+    const APP_VERSION='v25';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -724,16 +724,45 @@
       if(!latest) return;
       gaugeConfigs(latest).forEach(c=>gaugeGrid.appendChild(gauge(c)));
     }
+    const idealRangePlugin={
+      id:'idealRangeBand',
+      beforeDatasetsDraw(chart,args,opts){
+        if(!opts?.range) return;
+        const {ctx,chartArea,scales}=chart,y=scales.y;
+        if(!chartArea||!y) return;
+        const top=y.getPixelForValue(opts.range[1]),bottom=y.getPixelForValue(opts.range[0]);
+        ctx.save();
+        ctx.fillStyle=opts.fill||'rgba(95,224,162,.14)';
+        ctx.strokeStyle=opts.stroke||'rgba(169,255,213,.7)';
+        ctx.lineWidth=1;
+        ctx.fillRect(chartArea.left,top,chartArea.right-chartArea.left,bottom-top);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left,top); ctx.lineTo(chartArea.right,top);
+        ctx.moveTo(chartArea.left,bottom); ctx.lineTo(chartArea.right,bottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+    Chart.register(idealRangePlugin);
     function updateCharts(rows){
       const labels=rows.map(t=>t.date||''), ds=k=>rows.map(t=>t[k]??null);
-      const chartDefs={fcChart:['Free chlorine trend','fc','rgba(137,242,220,.2)','#89f2dc'],phChart:['pH trend','ph','rgba(255,209,102,.18)','#ffd166'],cyaChart:['CYA trend','cya','rgba(255,107,107,.18)','#ff6b6b'],taChart:['Total alkalinity trend','ta','rgba(105,210,255,.16)','#69d2ff']};
-      Object.entries(chartDefs).forEach(([id,[title,key,bg,color]])=>{
+      const chartDefs={
+        chChart:{title:'Total hardness trend',key:'ch',bg:'rgba(142,125,216,.18)',color:'#b9a8ff',min:0,max:1000,ideal:[250,400]},
+        fcChart:{title:'Free chlorine trend',key:'fc',bg:'rgba(137,242,220,.2)',color:'#89f2dc',min:0,max:10,ideal:[3,6]},
+        tcChart:{title:'Total chlorine trend',key:'tc',bg:'rgba(173,217,106,.18)',color:'#b8ef70',min:0,max:10,ideal:[3,6]},
+        cyaChart:{title:'CYA trend',key:'cya',bg:'rgba(255,107,107,.18)',color:'#ff8f9a',min:0,max:240,ideal:[30,50]},
+        taChart:{title:'Total alkalinity trend',key:'ta',bg:'rgba(105,210,255,.16)',color:'#69d2ff',min:0,max:240,ideal:[70,100]},
+        phChart:{title:'pH trend',key:'ph',bg:'rgba(255,209,102,.18)',color:'#ffd166',min:6.2,max:9,ideal:[7.4,7.6]}
+      };
+      Object.entries(chartDefs).forEach(([id,cfg])=>{
+        const {title,key,bg,color,min,max,ideal}=cfg;
         const data={labels,datasets:[{data:ds(key),borderColor:color,backgroundColor:bg,pointBackgroundColor:color,pointRadius:4,tension:.3,spanGaps:true}]};
-        if(charts[id]){charts[id].data=data; charts[id].update(); return;}
-        charts[id]=new Chart(document.getElementById(id),{type:'line',data,options:chartOptions(title)});
+        const options=chartOptions(title,min,max,ideal);
+        if(charts[id]){charts[id].data=data; charts[id].options=options; charts[id].update(); return;}
+        charts[id]=new Chart(document.getElementById(id),{type:'line',data,options});
       });
     }
-    function chartOptions(title){const chartText='#dff4ff',gridColor='rgba(255,255,255,.10)',lineColor='rgba(255,255,255,.18)'; return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:title,color:chartText,font:{size:16,weight:'700'}},tooltip:{backgroundColor:'rgba(4,24,45,.96)',borderColor:'rgba(255,255,255,.14)',borderWidth:1,titleColor:'#fff',bodyColor:'#dff4ff'}},scales:{x:{ticks:{color:'#c7e6f8',maxRotation:0,autoSkip:true},grid:{color:gridColor},border:{color:lineColor}},y:{ticks:{color:'#c7e6f8'},grid:{color:gridColor},border:{color:lineColor}}}}}
+    function chartOptions(title,min,max,ideal){const chartText='#dff4ff',gridColor='rgba(255,255,255,.10)',lineColor='rgba(255,255,255,.18)'; return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},idealRangeBand:{range:ideal},title:{display:true,text:title,color:chartText,font:{size:16,weight:'700'}},tooltip:{backgroundColor:'rgba(4,24,45,.96)',borderColor:'rgba(255,255,255,.14)',borderWidth:1,titleColor:'#fff',bodyColor:'#dff4ff'}},scales:{x:{ticks:{color:'#c7e6f8',maxRotation:0,autoSkip:true},grid:{color:gridColor},border:{color:lineColor}},y:{min,max,ticks:{color:'#c7e6f8'},grid:{color:gridColor},border:{color:lineColor}}}}}
     function updateDashboard(){
       const rows=sortedTests();
       const latest=rows[rows.length-1];
