@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=22">Dashboard</a><span id="appVersion" class="version">v22</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=23">Dashboard</a><span id="appVersion" class="version">v23</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v22';
+    const APP_VERSION='v23';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -301,6 +301,19 @@
       }
       return segments;
     }
+    function bestSevenPadRun(segments){
+      let best=null;
+      for(let i=0;i<=segments.length-7;i++){
+        const run=segments.slice(i,i+7),span=run[6].y-run[0].y;
+        if(span<=0)continue;
+        const gaps=run.slice(1).map((seg,index)=>seg.y-run[index].y),avgGap=gaps.reduce((a,b)=>a+b,0)/6;
+        const gapNoise=Math.sqrt(gaps.reduce((sum,gap)=>sum+(gap-avgGap)**2,0)/6)/Math.max(1,avgGap);
+        const orientation=purpleScore(run[0].rgb)+orangeScore(run[6].rgb);
+        const score=span-gapNoise*220+orientation*.8;
+        if(gapNoise<.28&&(!best||score>best.score))best={run,score};
+      }
+      return best?.run||null;
+    }
     function findStripPadsInWhiteBand(data,w,h){
       const counts=new Array(w).fill(0);
       for(let y=0;y<h;y++)for(let x=0;x<w;x++){
@@ -333,8 +346,14 @@
         for(let y=seg.start;y<=seg.end;y++){sum[0]+=rowSums[y][0]; sum[1]+=rowSums[y][1]; sum[2]+=rowSums[y][2]; sum[3]+=rowSums[y][3];}
         return {...seg,y:(seg.start+seg.end)/2,rgb:[0,1,2].map(k=>Math.round(sum[k]/Math.max(1,sum[3])))};
       }).sort((a,b)=>a.start-b.start);
-      const topSeg=segments.filter(seg=>seg.y<h*.45).sort((a,b)=>purpleScore(b.rgb)-purpleScore(a.rgb))[0];
-      const bottomSeg=segments.filter(seg=>seg.y>h*.55).sort((a,b)=>orangeScore(b.rgb)-orangeScore(a.rgb))[0];
+      const visibleRun=bestSevenPadRun(segments);
+      if(visibleRun){
+        const pads=visibleRun.map(seg=>({x:(padX0+padX1)/2,y:seg.y,w:padX1-padX0+1,h:seg.end-seg.start+1,rgb:seg.rgb}));
+        if(orangeScore(pads[0].rgb)>orangeScore(pads[6].rgb))pads.reverse();
+        return {pads,band:{x0:padX0,x1:padX1,y0:Math.max(0,Math.round(visibleRun[0].start-24)),y1:Math.min(h-1,Math.round(visibleRun[6].end+24))}};
+      }
+      const topSeg=segments.filter(seg=>seg.y<h*.55&&purpleScore(seg.rgb)>20).sort((a,b)=>a.y-b.y)[0];
+      const bottomSeg=segments.filter(seg=>seg.y>h*.45&&orangeScore(seg.rgb)>50).sort((a,b)=>b.y-a.y)[0];
       if(!topSeg||!bottomSeg||bottomSeg.y-topSeg.y<h*.35)return null;
       const top=topSeg.y,bottom=bottomSeg.y,step=(bottom-top)/6,halfY=Math.max(10,Math.min(48,step*.26)),sampleX0=Math.round(padX0+(padX1-padX0)*.18),sampleX1=Math.round(padX1-(padX1-padX0)*.18);
       const pads=[];
