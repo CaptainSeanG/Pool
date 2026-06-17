@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=23">Dashboard</a><span id="appVersion" class="version">v23</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=24">Dashboard</a><span id="appVersion" class="version">v24</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v23';
+    const APP_VERSION='v24';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -256,13 +256,20 @@
       ]
     };
     function blankStripValues(){return {ch:null,fc:null,tc:null,cya:null,ta:null,ph:null}}
-    function stripValuesFromPads(pads){
-      const values=blankStripValues();
-      if(pads.length<5) return values;
+    function stripMatchDetailsFromPads(pads){
+      const labels={ch:'Total Hardness',fc:'Free Chlorine',tc:'Total Chlorine',cya:'Cyanuric Acid',ta:'Total Alkalinity',ph:'pH'};
       const ordered=pads.length>=7
         ? {ch:pads[0],fc:pads[1],tc:pads[3],cya:pads[4],ta:pads[5],ph:pads[6]}
         : {ch:pads[0],fc:pads[1],tc:null,cya:pads[3]||null,ta:pads[4]||null,ph:pads[5]||null};
-      Object.entries(ordered).forEach(([key,color])=>{values[key]=color?closestPaletteValue(color,stripPalettes[key]).value:null;});
+      return Object.entries(ordered).map(([key,color])=>{
+        const match=color?closestPaletteValue(color,stripPalettes[key]):{value:null,score:null};
+        return {key,label:labels[key],sampledRgb:color||null,value:match.value,score:match.score};
+      });
+    }
+    function stripValuesFromPads(pads){
+      const values=blankStripValues();
+      if(pads.length<5) return values;
+      stripMatchDetailsFromPads(pads).forEach(match=>{values[match.key]=match.value;});
       return values;
     }
     function pixelAt(data,w,x,y){const i=(Math.max(0,Math.min(w-1,x|0))+Math.max(0,y|0)*w)*4; return [data[i],data[i+1],data[i+2]]}
@@ -542,13 +549,13 @@
       ctx.drawImage(img,0,0,w,h);
       const data=ctx.getImageData(0,0,w,h).data,whiteBand=findStripPadsInWhiteBand(data,w,h);
       if(whiteBand){
-        const pads=whiteBand.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),previewDataUrl=makeWhiteBandPreview(canvas,whiteBand);
-        return {values,previewDataUrl,analysis:`Strip was found from the white strip body and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
+        const pads=whiteBand.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),stripMatches=stripMatchDetailsFromPads(pads),previewDataUrl=makeWhiteBandPreview(canvas,whiteBand);
+        return {values,stripMatches,previewDataUrl,analysis:`Strip was found from the white strip body and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
       }
       const colorRun=findStripPadsByColor(data,w,h);
       if(colorRun){
-        const pads=colorRun.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),previewDataUrl=makePadPreview(canvas,colorRun);
-        return {values,previewDataUrl,analysis:`Strip was found by color pads and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
+        const pads=colorRun.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),stripMatches=stripMatchDetailsFromPads(pads),previewDataUrl=makePadPreview(canvas,colorRun);
+        return {values,stripMatches,previewDataUrl,analysis:`Strip was found by color pads and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
       }
       return {values:blankStripValues(),analysis:'Strip photo saved, but seven color pads were not confidently detected. Try a closer strip-only photo with the pads centered.'};
     }
@@ -583,7 +590,7 @@
         }
         const analysis=sheetHasValues?sheet.analysis:(strip?.analysis||'Photo saved. Review the photo and enter values on the dashboard ledger.');
         const parsed=sheetHasValues?sheet.values:(strip?.values||{});
-        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,processedDataUrl:strip?.previewDataUrl||null,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
+        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,processedDataUrl:strip?.previewDataUrl||null,stripMatches:strip?.stripMatches||null,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
         let accepted=row,sharedMessage='Saved locally on this device.';
         try{
