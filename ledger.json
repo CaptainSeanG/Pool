@@ -1,5 +1,35 @@
 [
   {
+    "id": "photo-1781653582140",
+    "date": "2026-06-16",
+    "time": "3:30 PM",
+    "source": "Phone strip photo",
+    "confidence": "Photo analysis - review",
+    "fc": 1,
+    "tc": 3,
+    "ph": 8.4,
+    "ta": 40,
+    "ch": 1000,
+    "cya": 40,
+    "iron": null,
+    "copper": null,
+    "phosphates": null,
+    "tds": null,
+    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 1000, FC 1, TC 3, CYA 40, TA 40, pH 8.4. Review on the dashboard ledger.",
+    "analysis": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 1000, FC 1, TC 3, CYA 40, TA 40, pH 8.4. Review on the dashboard ledger.",
+    "photo": {
+      "path": "uploads/2026-06-16/photo-1781653582140.jpg",
+      "url": "uploads/2026-06-16/photo-1781653582140.jpg",
+      "name": "IMG_4302.jpeg",
+      "type": "image/jpeg",
+      "width": 325,
+      "height": 1400,
+      "uploadedAt": "2026-06-16T23:46:22.140Z",
+      "processedPath": "uploads/2026-06-16/photo-1781653582140-strip.jpg",
+      "processedUrl": "uploads/2026-06-16/photo-1781653582140-strip.jpg"
+    }
+  },
+  {
     "id": "photo-1781718956671",
     "date": "2026-06-17",
     "time": "10:55 AM",
@@ -57,36 +87,6 @@
       "uploadedAt": "2026-06-17T05:03:32.000Z",
       "processedPath": "uploads/2026-06-16/photo-1781672612000-strip.jpg",
       "processedUrl": "uploads/2026-06-16/photo-1781672612000-strip.jpg"
-    }
-  },
-  {
-    "id": "photo-1781653582140",
-    "date": "2026-06-16",
-    "time": "3:30 PM",
-    "source": "Phone strip photo",
-    "confidence": "Photo analysis - review",
-    "fc": 1,
-    "tc": 3,
-    "ph": 8.4,
-    "ta": 40,
-    "ch": 1000,
-    "cya": 40,
-    "iron": null,
-    "copper": null,
-    "phosphates": null,
-    "tds": null,
-    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 1000, FC 1, TC 3, CYA 40, TA 40, pH 8.4. Review on the dashboard ledger.",
-    "analysis": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 1000, FC 1, TC 3, CYA 40, TA 40, pH 8.4. Review on the dashboard ledger.",
-    "photo": {
-      "path": "uploads/2026-06-16/photo-1781653582140.jpg",
-      "url": "uploads/2026-06-16/photo-1781653582140.jpg",
-      "name": "IMG_4302.jpeg",
-      "type": "image/jpeg",
-      "width": 325,
-      "height": 1400,
-      "uploadedAt": "2026-06-16T23:46:22.140Z",
-      "processedPath": "uploads/2026-06-16/photo-1781653582140-strip.jpg",
-      "processedUrl": "uploads/2026-06-16/photo-1781653582140-strip.jpg"
     }
   },
   {
