@@ -30,36 +30,6 @@
     }
   },
   {
-    "id": "photo-1781649177107",
-    "date": "2026-06-16",
-    "time": "3:30 PM",
-    "source": "Phone strip photo",
-    "confidence": "Photo analysis - review",
-    "fc": null,
-    "tc": null,
-    "ph": null,
-    "ta": null,
-    "ch": null,
-    "cya": null,
-    "iron": null,
-    "copper": null,
-    "phosphates": null,
-    "tds": null,
-    "notes": "Strip photo saved for manual review. On-phone strip analysis is temporarily disabled to keep uploads stable.",
-    "analysis": "Strip photo saved for manual review. On-phone strip analysis is temporarily disabled to keep uploads stable.",
-    "photo": {
-      "path": "uploads/2026-06-16/photo-1781649177107.jpg",
-      "url": "uploads/2026-06-16/photo-1781649177107.jpg",
-      "name": "IMG_4302.jpeg",
-      "type": "image/jpeg",
-      "width": 468,
-      "height": 1400,
-      "uploadedAt": "2026-06-16T22:32:57.107Z",
-      "processedPath": null,
-      "processedUrl": null
-    }
-  },
-  {
     "id": "photo-1781598814951",
     "date": "2026-06-16",
     "time": "1:33 AM",
