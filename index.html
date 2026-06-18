@@ -30,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v26</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=26">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v27</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=27">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -57,7 +57,8 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v26';
+    const APP_VERSION='v27';
+    const POOL_GALLONS=12000;
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -709,15 +710,57 @@
     function metricToken(label,value,unit=''){
       return `${label} <span class="reading-number">${fmt(value,unit)}</span>`;
     }
+    function num(v){return Number.isFinite(Number(v))?Number(v):null}
+    function roundTo(v,step){return Math.round(v/step)*step}
+    function doseText(ounces){
+      if(ounces<16) return `${Math.max(1,Math.round(ounces))} fl oz`;
+      const quarts=ounces/32;
+      if(quarts<3.75) return `${Math.round(quarts*2)/2} qt`;
+      return `${Math.round((ounces/128)*10)/10} gal`;
+    }
+    function poundsText(pounds){
+      if(pounds<1) return `${Math.round(pounds*16)} oz`;
+      return `${Math.round(pounds*10)/10} lb`;
+    }
+    function liquidChlorineOunces(current,target=5,strength=12.5){
+      const delta=Math.max(0,target-current);
+      return delta*(POOL_GALLONS/10000)/strength*128;
+    }
+    function bakingSodaPounds(current,target=80){
+      const delta=Math.max(0,target-current);
+      return delta/10*1.4*(POOL_GALLONS/10000);
+    }
+    function stabilizerPounds(current,target=40){
+      const delta=Math.max(0,target-current);
+      return delta/10*(13/16)*(POOL_GALLONS/10000);
+    }
+    function calciumChloridePounds(current,target=275){
+      const delta=Math.max(0,target-current);
+      return delta/10*1.25*(POOL_GALLONS/10000);
+    }
+    function addAction(actions,tag,title,body,rank=50){actions.push({tag,title,body,rank})}
     function updateActions(latest){
       const actionsEl=document.getElementById('actions'); actionsEl.replaceChildren();
       if(!latest){actionsEl.textContent='No readings available.'; return;}
       const actions=[];
-      if(latest.fc!==null&&latest.fc<2)actions.push(['FC','Add chlorine tonight','Latest FC is low. For this pool, a 1/2 gallon dose of 12.5% liquid chlorine is the usual catch-up move when evening FC drifts near 1 ppm.']); else if(latest.fc!==null&&latest.fc<=3)actions.push(['FC','Stay ahead of tomorrow\'s sun','FC is usable but not plush. A light evening top-off is a reasonable move if you want to stay comfortably in range.']); else actions.push(['OK','Chlorine looks okay','No big chlorine correction jumps out from the latest reading.']);
-      if(latest.ph!==null&&latest.ph>7.8)actions.push(['pH','pH is trending high','Small, measured acid corrections are smarter than aggressive swings. Let store tests anchor the exact move.']); else if(latest.ph!==null)actions.push(['pH','pH is looking decent','The newer strips make pH look much less scary than the old 4-way strips did.']);
-      if(latest.cya!==null&&latest.cya>60)actions.push(['CYA','CYA is climbing','Ease off tabs and think water exchange before the stabilizer problem gets harder to manage.']); else if(latest.cya!==null)actions.push(['CYA','CYA is in the sweet spot','That makes your chlorine\'s life a lot easier than it was before the big drain/refill.']);
-      if(latest.ta!==null&&latest.ta>100)actions.push(['TA','TA is at the upper edge','Not a panic issue. Just expect pH to want to creep upward over time.']);
-      actions.forEach(([tag,title,body])=>{const el=document.createElement('div'); el.className='action'; const mark=document.createElement('div'); mark.textContent=tag; const copy=document.createElement('div'); const strong=document.createElement('strong'); strong.textContent=title; const small=document.createElement('small'); small.textContent=body; copy.append(strong,small); el.append(mark,copy); actionsEl.appendChild(el)});
+      const fc=num(latest.fc),tc=num(latest.tc),ph=num(latest.ph),ta=num(latest.ta),cya=num(latest.cya),ch=num(latest.ch);
+      if(fc!==null&&fc<3){const target=cya!==null&&cya>=30?5:4,oz=roundTo(liquidChlorineOunces(fc,target),4); addAction(actions,'FC',`Add ${doseText(oz)} liquid chlorine`,`For a ${POOL_GALLONS.toLocaleString()} gal pool, that targets about ${target} ppm FC from the current ${fc} ppm using 12.5% liquid chlorine. Pour slowly in front of a return, circulate, and retest later.`,10)}
+      else if(fc!==null&&fc<6)addAction(actions,'FC','Chlorine is usable','No urgent chlorine correction. If this is an evening test and you want cushion for tomorrow, a small top-off is fine.',35);
+      else if(fc!==null)addAction(actions,'FC','Skip chlorine for now','FC is already in or above the target band. Let it drift down before adding more.',35);
+      if(fc!==null&&tc!==null&&tc-fc>.5)addAction(actions,'TC','Combined chlorine is elevated',`TC is ${tc} and FC is ${fc}. If the water smells strong or looks dull, plan an evening oxidation/shock cycle after confirming with a fresh test.`,20);
+      if(ta!==null&&ta<70){const target=80,lb=roundTo(bakingSodaPounds(ta,target),.25); addAction(actions,'TA',`Add about ${poundsText(lb)} baking soda`,`This should raise total alkalinity from ${ta} toward ${target} ppm in ${POOL_GALLONS.toLocaleString()} gal. Add in portions, circulate 30-60 minutes, then retest before chasing pH.`,12)}
+      else if(ta!==null&&ta>120)addAction(actions,'TA','TA is high','Avoid alkalinity increaser. Expect pH to climb faster; bring pH down in small acid corrections and let aeration settle TA over time.',28);
+      else if(ta!==null)addAction(actions,'TA','TA is okay','Alkalinity does not need a correction dose from this reading.',55);
+      if(ph!==null&&ph<7.2)addAction(actions,'pH','Do not add acid','pH is low. If TA is also low, correct TA first and retest; alkalinity increaser often nudges pH upward too.',14);
+      else if(ph!==null&&ph>7.8){const acid=ph>=8.4?16:ph>=8.1?12:8; addAction(actions,'pH',`Add about ${acid} fl oz muriatic acid`,`Conservative starting dose for 31.45% muriatic acid in ${POOL_GALLONS.toLocaleString()} gal. Add with pump running, wait 30-60 minutes, then retest before adding more.`,16)}
+      else if(ph!==null)addAction(actions,'pH','pH is in range','No pH dose needed right now.',55);
+      if(cya!==null&&cya<30){const lb=roundTo(stabilizerPounds(cya,40),.25); addAction(actions,'CYA',`Add about ${poundsText(lb)} stabilizer`,`This targets roughly 40 ppm CYA. Add slowly by sock/skimmer method per label and wait a couple days before trusting a retest.`,24)}
+      else if(cya!==null&&cya>60){const exchange=Math.min(50,Math.ceil((cya-50)/cya*100/5)*5); addAction(actions,'CYA','CYA is too high',`Skip tabs and stabilized shock. A partial water exchange around ${exchange}% would move CYA back toward 50 ppm; no chemical lowers it reliably.`,18)}
+      else if(cya!==null)addAction(actions,'CYA','CYA is in the sweet spot','Stabilizer is protecting chlorine without making it lazy. Keep using mostly liquid chlorine.',60);
+      if(ch!==null&&ch<200&&/leslie|store/i.test(`${latest.source||''} ${latest.confidence||''}`)){const lb=roundTo(calciumChloridePounds(ch,275),.5); addAction(actions,'CH',`Add about ${poundsText(lb)} calcium chloride`,`Store-test CH is ${ch}; PebbleTec usually wants more calcium. Add in portions and brush/circulate well.`,26)}
+      else if(ch!==null&&ch>650)addAction(actions,'CH','Hardness is high','Do not add calcium. Manage pH/TA carefully and use water exchange as the real hardness reducer if it keeps climbing.',30);
+      if(!actions.length)addAction(actions,'OK','No correction dose','The latest reading does not call for a chemical dose. Retest before changing anything.',50);
+      actions.sort((a,b)=>a.rank-b.rank).slice(0,6).forEach(({tag,title,body})=>{const el=document.createElement('div'); el.className='action'; const mark=document.createElement('div'); mark.textContent=tag; const copy=document.createElement('div'); const strong=document.createElement('strong'); strong.textContent=title; const small=document.createElement('small'); small.textContent=body; copy.append(strong,small); el.append(mark,copy); actionsEl.appendChild(el)});
     }
     function renderGauges(latest){
       const gaugeGrid=document.getElementById('gaugeGrid'); gaugeGrid.replaceChildren();
