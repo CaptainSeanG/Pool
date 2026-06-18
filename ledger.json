@@ -1,5 +1,35 @@
 [
   {
+    "id": "photo-1781801315488",
+    "date": "2026-06-18",
+    "time": "7:50 AM",
+    "source": "Phone strip photo",
+    "confidence": "Photo analysis - review",
+    "fc": 3,
+    "tc": 5,
+    "ph": 6.8,
+    "ta": 80,
+    "ch": 0,
+    "cya": 240,
+    "iron": null,
+    "copper": null,
+    "phosphates": null,
+    "tds": null,
+    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 0, FC 3, TC 5, CYA 240, TA 80, pH 6.8. Review on the dashboard ledger.",
+    "analysis": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 0, FC 3, TC 5, CYA 240, TA 80, pH 6.8. Review on the dashboard ledger.",
+    "photo": {
+      "path": "uploads/2026-06-18/photo-1781801315488.jpg",
+      "url": "uploads/2026-06-18/photo-1781801315488.jpg",
+      "name": "IMG_4326.jpeg",
+      "type": "image/jpeg",
+      "width": 1050,
+      "height": 1400,
+      "uploadedAt": "2026-06-18T16:48:35.488Z",
+      "processedPath": "uploads/2026-06-18/photo-1781801315488-strip.jpg",
+      "processedUrl": "uploads/2026-06-18/photo-1781801315488-strip.jpg"
+    }
+  },
+  {
     "id": "photo-1781799466780",
     "date": "2026-06-18",
     "time": "7:50 AM",
