@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=32">Dashboard</a><span id="appVersion" class="version">v32</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=33">Dashboard</a><span id="appVersion" class="version">v33</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v32';
+    const APP_VERSION='v33';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -164,9 +164,15 @@
     async function readLeslieResultCells(dataUrl){const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null])),layouts=[{x:.66,y:.315,w:.26,h:.445},{x:.68,y:.32,w:.22,h:.435},{x:.64,y:.305,w:.30,h:.46}]; for(const layout of layouts){const rowH=layout.h/10; for(let index=0;index<leslieResultOrder.length;index++){const key=leslieResultOrder[index]; if(values[key]!==null)continue; const crop={x:layout.x,y:layout.y+(rowH*index),w:layout.w,h:rowH*1.12}; try{const cropped=await cropDataUrl(dataUrl,crop); const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '}); values[key]=firstValidCellValue(result.data?.text||'',key);}catch(err){console.warn('Leslie result-cell OCR failed',err);}}} return values;}
     function shouldOverrideLeslieValue(key,current,next){
       if(next===null||next===undefined)return false;
+      if(current===null||current===undefined)return true;
+      if(key==='ta'&&current<40&&next>=40)return true;
+      if(key==='ch'&&current<150&&next>=150)return true;
+      if(key==='cya'&&current<10&&next>=10)return true;
+      if(key==='tds'&&current<100&&next>=100)return true;
+      if(key==='copper'&&current===0&&next>0&&next<1)return true;
       if(key==='phosphates'&&next>0&&next<10&&current>=10)return false;
       if(key==='copper'&&current!==null&&current!==undefined&&current<1&&next>=1)return false;
-      return true;
+      return false;
     }
     function mergeParsedOverride(base,extra){const merged={...base}; Object.entries(extra||{}).forEach(([key,value])=>{const next=normalizeLeslieValue(key,value); if(shouldOverrideLeslieValue(key,merged[key],next))merged[key]=next;}); return merged}
     function parseLeslieText(text){
