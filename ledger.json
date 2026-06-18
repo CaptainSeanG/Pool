@@ -15,7 +15,7 @@
     "copper": null,
     "phosphates": null,
     "tds": null,
-    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 500, FC 3, TC 5, CYA 40, TA 80, pH 6.8. Review on the dashboard ledger. Applied strip correction (CH -294, FC +5.4, TC +3.4, CYA +10, TA +76, pH +1.4).",
+    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 500, FC 3, TC 5, CYA 40, TA 80, pH 6.8. Review on the dashboard ledger. Applied strip correction (CH -294, FC +5.4, TC +3.4, CYA +10, TA +76, pH +1.4).  This was a test to see if the corrections were accurate.  They all were except TA which should be 116",
     "analysis": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 500, FC 3, TC 5, CYA 40, TA 80, pH 6.8. Review on the dashboard ledger. Applied strip correction (CH -294, FC +5.4, TC +3.4, CYA +10, TA +76, pH +1.4).",
     "stripCorrection": null,
     "correctionText": "",
