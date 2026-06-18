@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=29">Dashboard</a><span id="appVersion" class="version">v29</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=30">Dashboard</a><span id="appVersion" class="version">v30</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v29';
+    const APP_VERSION='v30';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -86,7 +86,7 @@
       document.getElementById('noticeTitle').textContent=title;
       document.getElementById('noticeText').textContent=text;
       document.getElementById('notice').classList.add('open');
-      if(autoClose) setTimeout(()=>document.getElementById('notice').classList.remove('open'),1900);
+      if(autoClose) setTimeout(()=>document.getElementById('notice').classList.remove('open'),8000);
     }
     function getUploadKey(){
       let key=localStorage.getItem(UPLOAD_KEY_STORAGE)||'';
@@ -272,6 +272,29 @@
       stripMatchDetailsFromPads(pads).forEach(match=>{values[match.key]=match.value;});
       return values;
     }
+    function autoWhiteBalanceData(source,w,h){
+      const sum=[0,0,0]; let count=0;
+      for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){
+        const i=(y*w+x)*4,r=source[i],g=source[i+1],b=source[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+        if(avg>120&&avg<245&&chroma<95){sum[0]+=r; sum[1]+=g; sum[2]+=b; count++;}
+      }
+      if(count<80){
+        for(let y=0;y<h;y+=4)for(let x=0;x<w;x+=4){
+          const i=(y*w+x)*4,r=source[i],g=source[i+1],b=source[i+2],avg=(r+g+b)/3;
+          if(avg>80&&avg<245){sum[0]+=r; sum[1]+=g; sum[2]+=b; count++;}
+        }
+      }
+      if(!count) return source;
+      const avg=sum.map(v=>v/count),target=(avg[0]+avg[1]+avg[2])/3,gain=avg.map(v=>Math.max(.68,Math.min(1.45,target/Math.max(1,v))));
+      const out=new Uint8ClampedArray(source.length);
+      for(let i=0;i<source.length;i+=4){
+        out[i]=Math.max(0,Math.min(255,source[i]*gain[0]));
+        out[i+1]=Math.max(0,Math.min(255,source[i+1]*gain[1]));
+        out[i+2]=Math.max(0,Math.min(255,source[i+2]*gain[2]));
+        out[i+3]=source[i+3];
+      }
+      return out;
+    }
     function pixelAt(data,w,x,y){const i=(Math.max(0,Math.min(w-1,x|0))+Math.max(0,y|0)*w)*4; return [data[i],data[i+1],data[i+2]]}
     function stripMaskPixel(r,g,b){
       const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
@@ -290,8 +313,8 @@
       return sum[3]?[0,1,2].map(k=>Math.round(sum[k]/sum[3])):pixelAt(data,w,Math.round(cx),Math.round(cy));
     }
     function isStripWhite(r,g,b){
-      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3;
-      return avg>170&&max-min<48;
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+      return avg>160&&chroma<92&&(b-r<72||avg>190);
     }
     function isPadColor(r,g,b){
       const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
@@ -547,7 +570,7 @@
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d',{willReadFrequently:true});
       ctx.drawImage(img,0,0,w,h);
-      const data=ctx.getImageData(0,0,w,h).data,whiteBand=findStripPadsInWhiteBand(data,w,h);
+      const rawData=ctx.getImageData(0,0,w,h).data,data=autoWhiteBalanceData(rawData,w,h),whiteBand=findStripPadsInWhiteBand(data,w,h);
       if(whiteBand){
         const pads=whiteBand.pads.map(p=>p.rgb),values=stripValuesFromPads(pads),stripMatches=stripMatchDetailsFromPads(pads),previewDataUrl=makeWhiteBandPreview(canvas,whiteBand);
         return {values,stripMatches,previewDataUrl,analysis:`Strip was found from the white strip body and sampled in fixed 7-pad order: ${summarizeStrip(values).replace(/^Strip color analysis estimated: /,'')}`};
@@ -608,7 +631,7 @@
           sharedMessage=`Saved locally, but GitHub upload failed: ${err.message}`;
         }
         document.getElementById('uploadStatus').textContent=`${sharedMessage} ${accepted.source} for ${accepted.date} ${accepted.time}.`;
-        showNotice(sharedMessage.startsWith('Saved to GitHub')?'Accepted results':'Saved locally',`${accepted.source} was added for ${accepted.date} ${accepted.time}. ${sharedMessage}`,true);
+        showNotice(sharedMessage.startsWith('Saved to GitHub')?'Accepted results':'Saved locally',`${accepted.source} was added for ${accepted.date} ${accepted.time}. ${sharedMessage} Analysis can take about 2 minutes to show up on the dashboard.`,true);
       }catch(err){console.error(err); document.getElementById('notice').classList.remove('open'); document.getElementById('uploadStatus').textContent='Could not save that image. Try a smaller or clearer photo.'}
     }
     function polar(cx,cy,r,a){const rad=(a-90)*Math.PI/180; return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)}}
