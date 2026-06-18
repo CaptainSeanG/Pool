@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=33">Dashboard</a><span id="appVersion" class="version">v33</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=34">Dashboard</a><span id="appVersion" class="version">v34</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v33';
+    const APP_VERSION='v34';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -146,24 +146,28 @@
     const extractResultNumberFromLine=(line,validator=()=>true)=>{const matches=extractNumbers(line,validator); return matches.length?matches[matches.length-1]:null};
     function findOcrValue(lines,pattern,validator=()=>true){for(const line of lines){if(!pattern.test(line))continue; const value=extractResultNumberFromLine(line,validator); if(value!==null)return value} return null}
     function findRangeResults(lines,rangePattern,validator=()=>true,minCount=3){const results=[],seen=new Set(); lines.forEach((_,index)=>{const block=lines.slice(index,index+3).join(' '); if(!rangePattern.test(block)||seen.has(block))return; seen.add(block); const numbers=extractNumbers(block,validator),result=numbers[numbers.length-1]; if(numbers.length>=minCount&&results[results.length-1]!==result)results.push(result);}); return results}
-    function applyLeslieRangeFallback(lines,values){const rangeMap=[['ph',/7\.2\s*[-–]\s*7\.8/i,v=>v>=6&&v<=10,0,()=>true],['ta',/80\s*[-–]\s*120/i,v=>v<=400,0,value=>value===null||value<40],['ch',/200\s*[-–]\s*400/i,v=>v<=1200,0,()=>true],['cya',/30\s*[-–]\s*100/i,v=>v<=300,0,()=>true],['iron',/0\s*[-–]\s*0\.?2/i,v=>v<=10,0,()=>true],['copper',/0\s*[-–]\s*0\.?2/i,v=>v<=10,1,()=>true],['phosphates',/0\s*[-–]\s*100\s*p{1,2}b/i,v=>v<=10000,0,()=>true],['tds',/0\s*[-–]\s*2500/i,v=>v<=10000,0,()=>true]]; rangeMap.forEach(([key,pattern,validator,occurrence,shouldReplace])=>{if(!shouldReplace(values[key]))return; const candidates=findRangeResults(lines,pattern,validator); if(candidates[occurrence]!==undefined)values[key]=candidates[occurrence];});}
+    function applyLeslieRangeFallback(lines,values){const rangeMap=[['ph',/7\s*\.?\s*2\D{0,16}7\s*\.?\s*8/i,v=>v>=6&&v<=10,0,value=>value===null||value===undefined],['ta',/80\s*[-–]\s*120/i,v=>v<=400,0,value=>value===null||value<40],['ch',/200\s*[-–]\s*400/i,v=>v<=1200,0,value=>value===null||value<150],['cya',/30\s*[-–]\s*100/i,v=>v<=300,0,()=>true],['iron',/0\s*[-–]\s*0\.?2/i,v=>v<=10,0,()=>true],['copper',/0\s*[-–]\s*0\.?2/i,v=>v<=10,1,()=>true],['phosphates',/0\s*[-–]\s*100\s*p{1,2}b/i,v=>v<=10000,0,()=>true],['tds',/0\s*[-–]\s*2500/i,v=>v<=10000,0,()=>true]]; rangeMap.forEach(([key,pattern,validator,occurrence,shouldReplace])=>{if(!shouldReplace(values[key]))return; const candidates=findRangeResults(lines,pattern,value=>validator(normalizeLeslieValue(key,value))); if(candidates[occurrence]!==undefined)values[key]=normalizeLeslieValue(key,candidates[occurrence]);});}
     const leslieResultOrder=['fc','tc','ph','ta','ch','cya','iron','copper','phosphates','tds'];
     const leslieValidators={fc:v=>v>=0&&v<=20,tc:v=>v>=0&&v<=20,ph:v=>v>=6&&v<=10,ta:v=>v>=40&&v<=400,ch:v=>v>=40&&v<=1200,cya:v=>v>=10&&v<=300,iron:v=>v>=0&&v<=10,copper:v=>v>=0&&v<=10,phosphates:v=>v===0||(v>=10&&v<=10000),tds:v=>v>=100&&v<=10000};
     function normalizeLeslieValue(key,value){
       if(value===null||value===undefined)return null;
       let next=Number(value);
       if(!Number.isFinite(next))return null;
+      if(key==='ph'&&next>10&&next<100)next=Math.round(next)/10;
       if(key==='copper'&&next>1&&next<=9)next=Math.round(next)/10;
       return next;
     }
+    function extractLeslieNumbers(text,key,validator=()=>true){return extractNumbers(text,()=>true).map(value=>normalizeLeslieValue(key,value)).filter(value=>value!==null&&validator(value));}
     function applyLeslieSequence(values,sequence,offset=0){leslieResultOrder.slice(offset).forEach((key,index)=>{const value=normalizeLeslieValue(key,sequence[index]); if(value!==null&&leslieValidators[key](value))values[key]=value;});}
     function valuesFromLeslieSequence(numbers){const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null])); if(numbers.length>=10){for(let start=0;start<=numbers.length-10;start++){const slice=numbers.slice(start,start+10); if(leslieResultOrder.every((key,index)=>leslieValidators[key](slice[index]))){applyLeslieSequence(values,slice,0); return values;}}} if(numbers.length>=7){const slice=numbers.slice(-7),keys=leslieResultOrder.slice(3); if(keys.every((key,index)=>leslieValidators[key](slice[index])))applyLeslieSequence(values,slice,3);} if(numbers.length>=5){const slice=numbers.slice(-5),keys=leslieResultOrder.slice(5); if(keys.every((key,index)=>leslieValidators[key](slice[index])))applyLeslieSequence(values,slice,5);} return values;}
     async function cropDataUrl(dataUrl,crop){const img=await imageFromDataUrl(dataUrl),canvas=document.createElement('canvas'); canvas.width=Math.max(1,Math.round(img.width*crop.w)); canvas.height=Math.max(1,Math.round(img.height*crop.h)); const ctx=canvas.getContext('2d'); ctx.filter='grayscale(1) contrast(1.8)'; ctx.drawImage(img,img.width*crop.x,img.height*crop.y,img.width*crop.w,img.height*crop.h,0,0,canvas.width,canvas.height); return canvas.toDataURL('image/png');}
     async function readLeslieResultColumn(dataUrl){const crops=[{x:.64,y:.30,w:.30,h:.47},{x:.66,y:.315,w:.26,h:.445},{x:.68,y:.32,w:.22,h:.435}]; let best=[]; for(const crop of crops){try{const cropped=await cropDataUrl(dataUrl,crop); const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '}); const numbers=extractNumbers(result.data?.text||'',v=>v>=0&&v<=10000); if(numbers.length>best.length)best=numbers;}catch(err){console.warn('Leslie result-column OCR failed',err);}} return valuesFromLeslieSequence(best);}
     function firstValidCellValue(text,key){const raw=extractNumbers(text,()=>true),numbers=raw.map(value=>normalizeLeslieValue(key,value)).filter(value=>value!==null&&leslieValidators[key](value)); if(!numbers.length)return null; if(key==='cya'){const likely=numbers.find(value=>value>=10&&value<=150); if(likely!==undefined)return likely;} if(key==='phosphates'){const likely=numbers.find(value=>value>=50&&value<=5000); if(likely!==undefined)return likely;} if(key==='tds'){const likely=numbers.find(value=>value>=100&&value<=10000); if(likely!==undefined)return likely;} return numbers[numbers.length-1];}
     async function readLeslieResultCells(dataUrl){const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null])),layouts=[{x:.66,y:.315,w:.26,h:.445},{x:.68,y:.32,w:.22,h:.435},{x:.64,y:.305,w:.30,h:.46}]; for(const layout of layouts){const rowH=layout.h/10; for(let index=0;index<leslieResultOrder.length;index++){const key=leslieResultOrder[index]; if(values[key]!==null)continue; const crop={x:layout.x,y:layout.y+(rowH*index),w:layout.w,h:rowH*1.12}; try{const cropped=await cropDataUrl(dataUrl,crop); const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '}); values[key]=firstValidCellValue(result.data?.text||'',key);}catch(err){console.warn('Leslie result-cell OCR failed',err);}}} return values;}
-    function shouldOverrideLeslieValue(key,current,next){
+    function sameReading(a,b){return a!==null&&a!==undefined&&b!==null&&b!==undefined&&Math.abs(Number(a)-Number(b))<.01}
+    function shouldOverrideLeslieValue(key,current,next,allValues={}){
       if(next===null||next===undefined)return false;
+      if(key==='ph'&&(sameReading(next,allValues.fc)||sameReading(next,allValues.tc)))return false;
       if(current===null||current===undefined)return true;
       if(key==='ta'&&current<40&&next>=40)return true;
       if(key==='ch'&&current<150&&next>=150)return true;
@@ -174,7 +178,14 @@
       if(key==='copper'&&current!==null&&current!==undefined&&current<1&&next>=1)return false;
       return false;
     }
-    function mergeParsedOverride(base,extra){const merged={...base}; Object.entries(extra||{}).forEach(([key,value])=>{const next=normalizeLeslieValue(key,value); if(shouldOverrideLeslieValue(key,merged[key],next))merged[key]=next;}); return merged}
+    function mergeParsedOverride(base,extra){const merged={...base}; Object.entries(extra||{}).forEach(([key,value])=>{const next=normalizeLeslieValue(key,value); if(shouldOverrideLeslieValue(key,merged[key],next,merged))merged[key]=next;}); return merged}
+    function repairLeslieValues(values){
+      const clean={...values};
+      if(clean.ph!==null&&(sameReading(clean.ph,clean.fc)||sameReading(clean.ph,clean.tc)))clean.ph=null;
+      if(clean.ch!==null&&clean.ta!==null&&sameReading(clean.ch,clean.ta))clean.ch=null;
+      if(clean.copper!==null&&clean.iron!==null&&sameReading(clean.copper,clean.iron)&&clean.copper===0)clean.copper=null;
+      return clean;
+    }
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
@@ -183,7 +194,7 @@
       const values=Object.fromEntries(defs.map(([key])=>[key,null])),starts=[];
       tableLines.forEach((line,index)=>{defs.forEach(([key,pattern])=>{if(!starts.some(item=>item.key===key)&&pattern.test(line)) starts.push({key,index});});});
       starts.sort((a,b)=>a.index-b.index);
-      starts.forEach((start,position)=>{const [,pattern,validator]=defs.find(([key])=>key===start.key); const end=starts[position+1]?.index??Math.min(tableLines.length,start.index+5); const numbers=extractNumbers(tableLines.slice(start.index,end).join(' '),validator); values[start.key]=numbers.length?numbers[numbers.length-1]:findOcrValue(tableLines,pattern,validator);});
+      starts.forEach((start,position)=>{const [,pattern,validator]=defs.find(([key])=>key===start.key); const end=starts[position+1]?.index??Math.min(tableLines.length,start.index+5); const numbers=extractLeslieNumbers(tableLines.slice(start.index,end).join(' '),start.key,validator); values[start.key]=numbers.length?numbers[numbers.length-1]:findOcrValue(tableLines,pattern,validator);});
       defs.forEach(([key,pattern,validator])=>{if(values[key]===null) values[key]=findOcrValue(lines,pattern,validator);});
       applyLeslieRangeFallback(tableLines,values);
       return values;
@@ -199,7 +210,7 @@
       if(!window.Tesseract?.recognize) return {values:{},analysis:'Leslie sheet stored. OCR was not available.'};
       document.getElementById('uploadStatus').textContent='Reading Leslie sheet...';
       showNotice('Processing Leslie sheet','Reading the printout and looking for chemistry numbers.');
-      try{const result=await Tesseract.recognize(dataUrl,'eng'); const textValues=parseLeslieText(result.data?.text||''),columnValues=await readLeslieResultColumn(dataUrl),cellValues=await readLeslieResultCells(dataUrl); let values=mergeParsedOverride(textValues,columnValues); values=mergeParsedOverride(values,cellValues); values=cleanLeslieValues(values); return {values,analysis:describeParsedValues(values)}}catch(err){console.warn(err); return {values:{},analysis:'Leslie sheet stored. OCR could not read this image clearly.'}}
+      try{const result=await Tesseract.recognize(dataUrl,'eng'); const textValues=parseLeslieText(result.data?.text||''),columnValues=await readLeslieResultColumn(dataUrl),cellValues=await readLeslieResultCells(dataUrl); let values=mergeParsedOverride(textValues,columnValues); values=mergeParsedOverride(values,cellValues); values=cleanLeslieValues(repairLeslieValues(values)); return {values,analysis:describeParsedValues(values)}}catch(err){console.warn(err); return {values:{},analysis:'Leslie sheet stored. OCR could not read this image clearly.'}}
     }
     const calibrationFields=['ch','fc','tc','cya','ta','ph'];
     const correctionLabels={ch:'CH',fc:'FC',tc:'TC',cya:'CYA',ta:'TA',ph:'pH'};
