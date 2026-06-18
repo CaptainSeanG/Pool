@@ -1,37 +1,5 @@
 [
   {
-    "id": "photo-1781811145583",
-    "date": "2026-06-18",
-    "time": "12:32 PM",
-    "source": "Leslie's sheet upload",
-    "confidence": "OCR - review",
-    "fc": 0.2,
-    "tc": 0.2,
-    "ph": null,
-    "ta": 206,
-    "ch": 80,
-    "cya": null,
-    "iron": 0,
-    "copper": 0.3,
-    "phosphates": 8,
-    "tds": 1000,
-    "notes": "OCR parsed: FC 0.2, TC 0.2, TA 206, CH 80, Iron 0, Copper 0.3, Phosphates 8, TDS 1000. Review on the dashboard ledger.",
-    "analysis": "OCR parsed: FC 0.2, TC 0.2, TA 206, CH 80, Iron 0, Copper 0.3, Phosphates 8, TDS 1000. Review on the dashboard ledger.",
-    "stripCorrection": null,
-    "correctionText": "",
-    "photo": {
-      "path": "uploads/2026-06-18/photo-1781811145583.jpg",
-      "url": "uploads/2026-06-18/photo-1781811145583.jpg",
-      "name": "image.jpg",
-      "type": "image/jpeg",
-      "width": 1050,
-      "height": 1400,
-      "uploadedAt": "2026-06-18T19:32:25.583Z",
-      "processedPath": null,
-      "processedUrl": null
-    }
-  },
-  {
     "id": "photo-1781801609406",
     "date": "2026-06-18",
     "time": "7:50 AM",
