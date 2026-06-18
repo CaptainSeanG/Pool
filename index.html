@@ -30,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v30</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=30">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v31</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=31">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -57,7 +57,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v30';
+    const APP_VERSION='v31';
     const POOL_GALLONS=12000;
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
@@ -87,6 +87,8 @@
       copy.id=copy.id||`seed-${index}-${copy.date||'no-date'}-${copy.time||'none'}`;
       copy.photo=copy.photo||null;
       copy.analysis=copy.analysis||'';
+      copy.stripCorrection=copy.stripCorrection||null;
+      copy.correctionText=copy.correctionText||'';
       ['date','time','source','confidence','notes'].forEach(key=>copy[key]=copy[key]??'');
       numericFields.forEach(key=>copy[key]=toNumberOrNull(copy[key]));
       return copy;
@@ -945,6 +947,12 @@
         const notes=document.createElement('div');
         notes.className='ledger-notes-row';
         notes.appendChild(ledgerField(row,'notes','Notes'));
+        if(row.correctionText){
+          const correction=document.createElement('div');
+          correction.className='analysis-note';
+          correction.textContent=row.correctionText;
+          notes.appendChild(correction);
+        }
         entry.append(head,chemistry,notes);
         body.appendChild(entry);
       });

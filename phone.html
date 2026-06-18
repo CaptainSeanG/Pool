@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=30">Dashboard</a><span id="appVersion" class="version">v30</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=31">Dashboard</a><span id="appVersion" class="version">v31</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v30';
+    const APP_VERSION='v31';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -47,7 +47,7 @@
     function normalizeRow(row,index){
       const copy={...row};
       copy.id=copy.id||`seed-${index}-${copy.date||'no-date'}-${copy.time||'none'}`;
-      copy.photo=copy.photo||null; copy.analysis=copy.analysis||'';
+      copy.photo=copy.photo||null; copy.analysis=copy.analysis||''; copy.stripCorrection=copy.stripCorrection||null; copy.correctionText=copy.correctionText||'';
       ['date','time','source','confidence','notes'].forEach(key=>copy[key]=copy[key]??'');
       numericFields.forEach(key=>copy[key]=toNumberOrNull(copy[key]));
       return copy;
@@ -155,6 +155,7 @@
     async function readLeslieResultColumn(dataUrl){const crops=[{x:.64,y:.30,w:.30,h:.47},{x:.66,y:.315,w:.26,h:.445},{x:.68,y:.32,w:.22,h:.435}]; let best=[]; for(const crop of crops){try{const cropped=await cropDataUrl(dataUrl,crop); const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '}); const numbers=extractNumbers(result.data?.text||'',v=>v>=0&&v<=10000); if(numbers.length>best.length)best=numbers;}catch(err){console.warn('Leslie result-column OCR failed',err);}} return valuesFromLeslieSequence(best);}
     function firstValidCellValue(text,key){const numbers=extractNumbers(text,leslieValidators[key]); if(!numbers.length)return null; if(key==='cya'){const likely=numbers.find(value=>value>=10&&value<=150); if(likely!==undefined)return likely;} if(key==='phosphates'){const likely=numbers.find(value=>value>=50&&value<=5000); if(likely!==undefined)return likely;} if(key==='tds'){const likely=numbers.find(value=>value>=100&&value<=10000); if(likely!==undefined)return likely;} return numbers[numbers.length-1];}
     async function readLeslieResultCells(dataUrl){const values=Object.fromEntries(leslieResultOrder.map(key=>[key,null])),layouts=[{x:.66,y:.315,w:.26,h:.445},{x:.68,y:.32,w:.22,h:.435},{x:.64,y:.305,w:.30,h:.46}]; for(const layout of layouts){const rowH=layout.h/10; for(let index=0;index<leslieResultOrder.length;index++){const key=leslieResultOrder[index]; if(values[key]!==null)continue; const crop={x:layout.x,y:layout.y+(rowH*index),w:layout.w,h:rowH*1.12}; try{const cropped=await cropDataUrl(dataUrl,crop); const result=await Tesseract.recognize(cropped,'eng',{tessedit_char_whitelist:'0123456789. '}); values[key]=firstValidCellValue(result.data?.text||'',key);}catch(err){console.warn('Leslie result-cell OCR failed',err);}}} return values;}
+    function mergeParsedOverride(base,extra){const merged={...base}; Object.entries(extra||{}).forEach(([key,value])=>{if(value!==null&&value!==undefined)merged[key]=value;}); return merged}
     function parseLeslieText(text){
       const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const tableStart=lines.findIndex(line=>/test|ideal range|result/i.test(line));
@@ -179,7 +180,52 @@
       if(!window.Tesseract?.recognize) return {values:{},analysis:'Leslie sheet stored. OCR was not available.'};
       document.getElementById('uploadStatus').textContent='Reading Leslie sheet...';
       showNotice('Processing Leslie sheet','Reading the printout and looking for chemistry numbers.');
-      try{const result=await Tesseract.recognize(dataUrl,'eng'); let values=parseLeslieText(result.data?.text||''); values=mergeParsedValues(values,await readLeslieResultColumn(dataUrl)); values=mergeParsedValues(values,await readLeslieResultCells(dataUrl)); values=cleanLeslieValues(values); return {values,analysis:describeParsedValues(values)}}catch(err){console.warn(err); return {values:{},analysis:'Leslie sheet stored. OCR could not read this image clearly.'}}
+      try{const result=await Tesseract.recognize(dataUrl,'eng'); const textValues=parseLeslieText(result.data?.text||''),columnValues=await readLeslieResultColumn(dataUrl),cellValues=await readLeslieResultCells(dataUrl); let values=mergeParsedOverride(textValues,columnValues); values=mergeParsedOverride(values,cellValues); values=cleanLeslieValues(values); return {values,analysis:describeParsedValues(values)}}catch(err){console.warn(err); return {values:{},analysis:'Leslie sheet stored. OCR could not read this image clearly.'}}
+    }
+    const calibrationFields=['ch','fc','tc','cya','ta','ph'];
+    const correctionLabels={ch:'CH',fc:'FC',tc:'TC',cya:'CYA',ta:'TA',ph:'pH'};
+    function roundChem(key,value){if(value===null||value===undefined||!Number.isFinite(value))return null; if(key==='ph')return Math.round(value*10)/10; if(['fc','tc'].includes(key))return Math.round(value*10)/10; return Math.round(value);}
+    function latestStripRowBefore(date,time){
+      const cutoff=timestampFor({date,time});
+      return sortedTests().filter(row=>/strip/i.test(row.source||'')&&timestampFor(row)<=cutoff&&calibrationFields.some(key=>row[key]!==null&&row[key]!==undefined)).pop()||null;
+    }
+    function formatCorrection(correction){
+      const parts=calibrationFields.filter(key=>correction?.[key]!==undefined).map(key=>`${correctionLabels[key]} ${correction[key]>=0?'+':''}${correction[key]}`);
+      return parts.length?`Strip correction: ${parts.join(', ')}.`:'';
+    }
+    function computeStripCorrection(leslieValues,date,time){
+      const strip=latestStripRowBefore(date,time),correction={};
+      if(!strip)return {correction:null,text:''};
+      calibrationFields.forEach(key=>{
+        if(leslieValues[key]===null||leslieValues[key]===undefined||strip[key]===null||strip[key]===undefined)return;
+        const delta=roundChem(key,leslieValues[key]-strip[key]);
+        if(delta!==null&&delta!==0)correction[key]=delta;
+      });
+      const text=formatCorrection(correction);
+      return {correction:Object.keys(correction).length?correction:null,text:text?`${text} Based on Leslie's results minus the latest prior strip reading.`:''};
+    }
+    function parseCorrectionText(text){
+      const correction={};
+      String(text||'').replace(/(CH|FC|TC|CYA|TA|pH)\s*([+-]\s*\d+(?:\.\d+)?)/gi,(m,label,num)=>{
+        const key=Object.entries(correctionLabels).find(([,value])=>value.toLowerCase()===label.toLowerCase())?.[0];
+        if(key)correction[key]=Number(String(num).replace(/\s+/g,''));
+      });
+      return Object.keys(correction).length?correction:null;
+    }
+    function latestStripCorrection(){
+      return sortedTests().slice().reverse().map(row=>row.stripCorrection||parseCorrectionText(row.notes)||parseCorrectionText(row.analysis)).find(Boolean)||null;
+    }
+    function applyStripCorrection(values){
+      const correction=latestStripCorrection();
+      if(!correction)return {values,summary:''};
+      const adjusted={...values},parts=[];
+      calibrationFields.forEach(key=>{
+        if(adjusted[key]===null||adjusted[key]===undefined||correction[key]===undefined)return;
+        const next=roundChem(key,adjusted[key]+correction[key]);
+        adjusted[key]=Math.max(0,next);
+        parts.push(`${correctionLabels[key]} ${correction[key]>=0?'+':''}${correction[key]}`);
+      });
+      return {values:adjusted,summary:parts.length?` Applied strip correction (${parts.join(', ')}).`:''};
     }
     async function analyzeStrip(dataUrl){
       const result=await analyzeStripPhoto(dataUrl);
@@ -611,15 +657,26 @@
             strip={values:{},analysis:'Strip photo saved, but analysis failed. Review the photo and enter values on the dashboard ledger.'};
           }
         }
-        const analysis=sheetHasValues?sheet.analysis:(strip?.analysis||'Photo saved. Review the photo and enter values on the dashboard ledger.');
-        const parsed=sheetHasValues?sheet.values:(strip?.values||{});
-        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,photo:{dataUrl:photo.dataUrl,processedDataUrl:strip?.previewDataUrl||null,stripMatches:strip?.stripMatches||null,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
+        let analysis=sheetHasValues?sheet.analysis:(strip?.analysis||'Photo saved. Review the photo and enter values on the dashboard ledger.');
+        let parsed=sheetHasValues?sheet.values:(strip?.values||{});
+        let stripCorrection=null,correctionText='';
+        if(sheetHasValues){
+          const computed=computeStripCorrection(parsed,stamp.date,stamp.time);
+          stripCorrection=computed.correction;
+          correctionText=computed.text;
+          if(correctionText)analysis=`${analysis} ${correctionText}`;
+        }else if(strip){
+          const corrected=applyStripCorrection(parsed);
+          parsed=corrected.values;
+          if(corrected.summary)analysis=`${analysis}${corrected.summary}`;
+        }
+        const row=normalizeRow({id:`photo-${Date.now()}`,date:stamp.date,time:stamp.time,source:kind==='leslie'?'Leslie\'s sheet upload':'Phone strip photo',confidence:sheetHasValues?'OCR - review':'Photo analysis - review',fc:parsed.fc??null,tc:parsed.tc??null,ph:parsed.ph??null,ta:parsed.ta??null,ch:parsed.ch??null,cya:parsed.cya??null,iron:parsed.iron??null,copper:parsed.copper??null,phosphates:parsed.phosphates??null,tds:parsed.tds??null,notes:analysis,analysis,stripCorrection,correctionText,photo:{dataUrl:photo.dataUrl,processedDataUrl:strip?.previewDataUrl||null,stripMatches:strip?.stripMatches||null,name:file.name||'pool-photo.jpg',type:'image/jpeg',width:photo.width,height:photo.height,uploadedAt:new Date().toISOString()}},tests.length);
         tests.push(row); persistTests(); renderAll();
         let accepted=row,sharedMessage='Saved locally on this device.';
         try{
           const shared=await uploadSharedRow(row);
           if(shared.ok&&shared.row){
-            accepted=normalizeRow(shared.row,tests.length);
+            accepted=normalizeRow({...shared.row,stripCorrection:row.stripCorrection,correctionText:row.correctionText},tests.length);
             tests=tests.map(item=>item.id===row.id?accepted:item);
             persistTests();
             renderAll();
