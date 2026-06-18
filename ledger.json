@@ -71,36 +71,6 @@
     }
   },
   {
-    "id": "photo-1781803109715",
-    "date": "2026-06-18",
-    "time": "10:18 AM",
-    "source": "Leslie's sheet upload",
-    "confidence": "OCR - review",
-    "fc": 4,
-    "tc": 8.37,
-    "ph": null,
-    "ta": 120,
-    "ch": 400,
-    "cya": null,
-    "iron": 3,
-    "copper": null,
-    "phosphates": 1000,
-    "tds": null,
-    "notes": "OCR parsed: FC 4, TC 8.37, TA 120, CH 400, Iron 3, Phosphates 1000. Review on the dashboard ledger.",
-    "analysis": "OCR parsed: FC 4, TC 8.37, TA 120, CH 400, Iron 3, Phosphates 1000. Review on the dashboard ledger.",
-    "photo": {
-      "path": "uploads/2026-06-18/photo-1781803109715.jpg",
-      "url": "uploads/2026-06-18/photo-1781803109715.jpg",
-      "name": "image.jpg",
-      "type": "image/jpeg",
-      "width": 1050,
-      "height": 1400,
-      "uploadedAt": "2026-06-18T17:18:29.715Z",
-      "processedPath": null,
-      "processedUrl": null
-    }
-  },
-  {
     "id": "photo-1781801609406",
     "date": "2026-06-18",
     "time": "7:50 AM",
