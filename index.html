@@ -30,7 +30,7 @@
 <body>
   <div class="backyard-art"></div>
   <div class="container">
-    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v36</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=36">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
+    <section class="hero"><div class="hero-main"><div><div class="hero-topline"><div class="kicker">Sean's backyard pool lab</div><span id="appVersion" class="version-note">v37</span></div><h1>Pool chemistry dashboard</h1></div><div class="hero-side"><div class="hero-actions"><a class="pill pill-link" href="phone.html?v=37">Data Upload Page</a></div><div class="latest-card"><div class="metric-label">Latest reading</div><div id="latestDate" class="metric-value" style="font-size:1.4rem;">-</div><div class="muted" id="latestSource">-</div><div class="latest-summary" id="latestSummary"></div></div></div></div></section>
     <div class="section-title"><h2>Visual chemistry board</h2></div><section class="grid gauge-grid" id="gaugeGrid"></section>
     <div class="section-title"><h2>Latest snapshot</h2><p>Fast read of today's main chemistry values.</p></div>
     <section class="grid summary-grid"><div class="card metric-card"><div class="metric-label">Free chlorine</div><div id="fcValue" class="metric-value">-</div><div id="fcStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">pH</div><div id="phValue" class="metric-value">-</div><div id="phStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">CYA</div><div id="cyaValue" class="metric-value">-</div><div id="cyaStatus" class="status"><span class="dot"></span><span>-</span></div></div><div class="card metric-card"><div class="metric-label">Total alkalinity</div><div id="taValue" class="metric-value">-</div><div id="taStatus" class="status"><span class="dot"></span><span>-</span></div></div></section>
@@ -57,7 +57,7 @@
     const STORAGE_KEY='poolDashboardLocalTests';
     const DELETED_IDS_KEY='poolDashboardDeletedRowIds';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v36';
+    const APP_VERSION='v37';
     const POOL_GALLONS=12000;
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
@@ -798,6 +798,9 @@
       }
     };
     Chart.register(idealRangePlugin);
+    function isLeslieRow(row){
+      return /leslie/i.test(`${row.source||''} ${row.confidence||''}`);
+    }
     function updateCharts(rows){
       const chartDefs={
         chChart:{title:'Total hardness trend',key:'ch',bg:'rgba(142,125,216,.18)',color:'#b9a8ff',min:0,max:1000,ideal:[250,400]},
@@ -811,7 +814,11 @@
         const {title,key,bg,color,min,max,ideal}=cfg;
         const chartRows=rows.filter(row=>row[key]!==null&&row[key]!==undefined);
         const labels=chartRows.map(t=>t.date||''), values=chartRows.map(t=>t[key]);
-        const data={labels,datasets:[{data:values,borderColor:color,backgroundColor:bg,pointBackgroundColor:color,pointRadius:4,tension:.3,spanGaps:true}]};
+        const pointColors=chartRows.map(row=>isLeslieRow(row)?'#020814':color);
+        const pointBorders=chartRows.map(row=>isLeslieRow(row)?'#eaffff':color);
+        const pointRadii=chartRows.map(row=>isLeslieRow(row)?8:4);
+        const pointHoverRadii=chartRows.map(row=>isLeslieRow(row)?10:6);
+        const data={labels,datasets:[{data:values,borderColor:color,backgroundColor:bg,pointBackgroundColor:pointColors,pointBorderColor:pointBorders,pointBorderWidth:chartRows.map(row=>isLeslieRow(row)?2:1),pointRadius:pointRadii,pointHoverRadius:pointHoverRadii,tension:.3,spanGaps:true}]};
         const options=chartOptions(title,min,max,ideal);
         if(charts[id]){charts[id].data=data; charts[id].options=options; charts[id].update(); return;}
         charts[id]=new Chart(document.getElementById(id),{type:'line',data,options});
