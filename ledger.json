@@ -1,5 +1,105 @@
 [
   {
+    "id": "photo-1781893609692",
+    "date": "2026-06-19",
+    "time": "10:56 AM",
+    "source": "Phone strip photo",
+    "confidence": "Photo analysis - review",
+    "fc": 6.4,
+    "tc": 8.4,
+    "ph": 8.2,
+    "ta": 116,
+    "ch": 206,
+    "cya": 50,
+    "iron": null,
+    "copper": null,
+    "phosphates": null,
+    "tds": null,
+    "notes": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 500, FC 1, TC 5, CYA 40, TA 40, pH 6.8. Review on the dashboard ledger. Applied strip correction (CH -294, FC +5.4, TC +3.4, CYA +10, TA +76, pH +1.4).",
+    "analysis": "Strip was found from the white strip body and sampled in fixed 7-pad order: CH 500, FC 1, TC 5, CYA 40, TA 40, pH 6.8. Review on the dashboard ledger. Applied strip correction (CH -294, FC +5.4, TC +3.4, CYA +10, TA +76, pH +1.4).",
+    "stripCorrection": null,
+    "correctionText": "",
+    "photo": {
+      "path": "uploads/2026-06-19/photo-1781893609692.jpg",
+      "url": "uploads/2026-06-19/photo-1781893609692.jpg",
+      "name": "IMG_4362.jpeg",
+      "type": "image/jpeg",
+      "width": 900,
+      "height": 1200,
+      "uploadedAt": "2026-06-19T18:26:49.692Z",
+      "processedPath": "uploads/2026-06-19/photo-1781893609692-strip.jpg",
+      "processedUrl": "uploads/2026-06-19/photo-1781893609692-strip.jpg",
+      "stripMatches": [
+        {
+          "key": "ch",
+          "label": "Total Hardness",
+          "value": 500,
+          "score": 0.2153760096089549,
+          "sampledRgb": [
+            190,
+            127,
+            193
+          ]
+        },
+        {
+          "key": "fc",
+          "label": "Free Chlorine",
+          "value": 1,
+          "score": 0.12528754861043911,
+          "sampledRgb": [
+            236,
+            152,
+            217
+          ]
+        },
+        {
+          "key": "tc",
+          "label": "Total Chlorine",
+          "value": 5,
+          "score": 0.2512120562825417,
+          "sampledRgb": [
+            147,
+            234,
+            160
+          ]
+        },
+        {
+          "key": "cya",
+          "label": "Cyanuric Acid",
+          "value": 40,
+          "score": 0.35307049080191666,
+          "sampledRgb": [
+            250,
+            230,
+            177
+          ]
+        },
+        {
+          "key": "ta",
+          "label": "Total Alkalinity",
+          "value": 40,
+          "score": 0.07418922313135545,
+          "sampledRgb": [
+            183,
+            231,
+            203
+          ]
+        },
+        {
+          "key": "ph",
+          "label": "pH",
+          "value": 6.8,
+          "score": 0.39800688538003404,
+          "sampledRgb": [
+            254,
+            197,
+            123
+          ]
+        }
+      ]
+    }
+  },
+  {
     "id": "photo-1781842387182",
     "date": "2026-06-18",
     "time": "7:06 PM",
