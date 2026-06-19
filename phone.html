@@ -23,7 +23,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=35">Dashboard</a><span id="appVersion" class="version">v35</span></div></div>
+    <div class="top"><div><div class="kicker">Pool phone lab</div><h1>Quick upload</h1><p class="sub">Add new strip photos or Leslie's printouts. Images are stored in this browser and update the shared dashboard ledger.</p></div><div class="nav-link"><a class="link" href="index.html?v=36">Dashboard</a><span id="appVersion" class="version">v36</span></div></div>
     <section class="card latest"><div class="label">Latest test</div><div id="latestDate" class="big">-</div><div id="latestSummary" class="summary">-</div></section>
     <section class="card"><div class="upload-grid"><label class="upload-btn" for="stripCamera">Snap strip</label><input id="stripCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="stripLibrary">Upload strip</label><input id="stripLibrary" class="photo-input" type="file" accept="image/*"><label class="upload-btn" for="leslieCamera">Snap Leslie's</label><input id="leslieCamera" class="photo-input" type="file" accept="image/*" capture="environment"><label class="upload-btn secondary" for="leslieLibrary">Upload Leslie's</label><input id="leslieLibrary" class="photo-input" type="file" accept="image/*"></div><p id="uploadStatus" class="status"></p></section>
     <section class="gauge-grid" id="gaugeGrid"></section>
@@ -34,7 +34,7 @@
   <script>
     const STORAGE_KEY='poolDashboardLocalTests';
     const UPLOAD_KEY_STORAGE='poolDashboardUploadKey';
-    const APP_VERSION='v35';
+    const APP_VERSION='v36';
     const DEFAULT_API_BASE='https://pool-chemical-uploader.macgyver2.workers.dev';
     const API_BASE=(window.POOL_API_BASE||DEFAULT_API_BASE).replace(/\/+$/,'');
     const SHARED_LEDGER_URL='ledger.json';
@@ -404,9 +404,13 @@
       const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
       return avg>160&&chroma<92&&(b-r<72||avg>190);
     }
+    function isBrightStripWhite(r,g,b){
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+      return avg>188&&chroma<72&&max>178;
+    }
     function isPadColor(r,g,b){
       const max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
-      return avg>55&&avg<242&&chroma>12&&chroma/Math.max(1,max)>.055&&!isStripWhite(r,g,b);
+      return avg>55&&avg<248&&chroma>10&&chroma/Math.max(1,max)>.04&&!(avg>225&&chroma<18);
     }
     function rowSegmentsFromSignal(signal,minHeight,maxHeight){
       const maxSignal=Math.max(...signal),threshold=Math.max(.045,maxSignal*.32),segments=[];
@@ -433,6 +437,8 @@
       return best?.run||null;
     }
     function findStripPadsInWhiteBand(data,w,h){
+      const strict=findStripPadsFromBrightBand(data,w,h);
+      if(strict)return strict;
       const counts=new Array(w).fill(0);
       for(let y=0;y<h;y++)for(let x=0;x<w;x++){
         const i=(y*w+x)*4;
@@ -484,6 +490,72 @@
       }
       if(orangeScore(pads[0].rgb)>orangeScore(pads[6].rgb))pads.reverse();
       return {pads,band:{x0:padX0,x1:padX1,y0:Math.max(0,Math.round(top-halfY*2)),y1:Math.min(h-1,Math.round(bottom+halfY*2))}};
+    }
+    function findStripPadsFromBrightBand(data,w,h){
+      const counts=new Array(w).fill(0);
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        if(isBrightStripWhite(data[i],data[i+1],data[i+2]))counts[x]++;
+      }
+      const smooth=counts.map((_,i)=>counts.slice(Math.max(0,i-3),Math.min(w,i+4)).reduce((a,b)=>a+b,0)/7);
+      const maxCount=Math.max(...smooth),threshold=Math.max(h*.055,maxCount*.38),bands=[];
+      for(let x=0;x<w;x++){
+        if(smooth[x]<threshold)continue;
+        const start=x;
+        while(x<w&&smooth[x]>=threshold)x++;
+        const end=x-1,width=end-start+1,score=smooth.slice(start,end+1).reduce((a,b)=>a+b,0);
+        if(width>=8&&width<=Math.min(115,w*.35))bands.push({start,end,width,score});
+      }
+      const band=bands.sort((a,b)=>b.score-a.score)[0];
+      if(!band)return null;
+      const padX0=Math.max(0,band.start-6),padX1=Math.min(w-1,band.end+6),innerX0=Math.round(padX0+(padX1-padX0)*.22),innerX1=Math.round(padX1-(padX1-padX0)*.22),rowSignal=new Array(h).fill(0),rowSums=Array.from({length:h},()=>[0,0,0,0]),whiteSignal=new Array(h).fill(0);
+      for(let y=0;y<h;y++){
+        for(let x=padX0;x<=padX1;x++){
+          const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+          if(isBrightStripWhite(r,g,b)||isStripWhite(r,g,b))whiteSignal[y]++;
+        }
+        for(let x=innerX0;x<=innerX1;x++){
+          const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b),avg=(r+g+b)/3,chroma=max-min;
+          if(avg>248)continue;
+          let score=Math.min(1,chroma/Math.max(1,max))*1.2;
+          if(avg<235)score+=Math.max(0,(235-avg)/360);
+          if(score<.025)continue;
+          rowSignal[y]+=score; rowSums[y][0]+=r*score; rowSums[y][1]+=g*score; rowSums[y][2]+=b*score; rowSums[y][3]+=score;
+        }
+        rowSignal[y]/=(innerX1-innerX0+1);
+        whiteSignal[y]/=(padX1-padX0+1);
+      }
+      const smoothRows=rowSignal.map((_,i)=>rowSignal.slice(Math.max(0,i-4),Math.min(h,i+5)).reduce((a,b)=>a+b,0)/9);
+      let segments=rowSegmentsFromSignal(smoothRows,Math.max(7,Math.round(h*.008)),Math.max(48,Math.round(h*.09)));
+      segments=segments.map(seg=>{
+        const sum=[0,0,0,0];
+        for(let y=seg.start;y<=seg.end;y++){sum[0]+=rowSums[y][0]; sum[1]+=rowSums[y][1]; sum[2]+=rowSums[y][2]; sum[3]+=rowSums[y][3];}
+        return {...seg,y:(seg.start+seg.end)/2,rgb:[0,1,2].map(k=>Math.round(sum[k]/Math.max(1,sum[3])))};
+      }).filter(seg=>seg.weight>.3).sort((a,b)=>a.start-b.start);
+      const visibleRun=bestSevenPadRun(segments);
+      if(visibleRun){
+        const pads=visibleRun.map(seg=>({x:(padX0+padX1)/2,y:seg.y,w:padX1-padX0+1,h:seg.end-seg.start+1,rgb:seg.rgb}));
+        if(orangeScore(pads[0].rgb)>orangeScore(pads[6].rgb))pads.reverse();
+        return {pads,band:{x0:padX0,x1:padX1,y0:Math.max(0,Math.round(visibleRun[0].start-24)),y1:Math.min(h-1,Math.round(visibleRun[6].end+24))},method:'bright-strip'};
+      }
+      const colored=segments.filter(seg=>purpleScore(seg.rgb)>18||orangeScore(seg.rgb)>45||greenScore(seg.rgb)>18);
+      if(colored.length>=3){
+        const top=colored.find(seg=>purpleScore(seg.rgb)>18)||colored[0],bottom=[...colored].reverse().find(seg=>orangeScore(seg.rgb)>45)||colored[colored.length-1];
+        if(bottom.y>top.y&&bottom.y-top.y>h*.22){
+          const step=(bottom.y-top.y)/6,halfY=Math.max(8,Math.min(34,step*.23)),sampleX0=Math.round(padX0+(padX1-padX0)*.18),sampleX1=Math.round(padX1-(padX1-padX0)*.18),pads=[];
+          for(let n=0;n<7;n++){
+            const cy=top.y+step*n,sum=[0,0,0,0];
+            for(let y=Math.max(0,Math.round(cy-halfY));y<=Math.min(h-1,Math.round(cy+halfY));y++)for(let x=sampleX0;x<=sampleX1;x++){
+              const i=(y*w+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+              if(isPadColor(r,g,b)||Math.abs(y-cy)<halfY*.55){sum[0]+=r; sum[1]+=g; sum[2]+=b; sum[3]++;}
+            }
+            pads.push({x:(sampleX0+sampleX1)/2,y:cy,w:sampleX1-sampleX0+1,h:halfY*2,rgb:[0,1,2].map(k=>Math.round(sum[k]/Math.max(1,sum[3])))});
+          }
+          if(orangeScore(pads[0].rgb)>orangeScore(pads[6].rgb))pads.reverse();
+          return {pads,band:{x0:padX0,x1:padX1,y0:Math.max(0,Math.round(top.y-halfY*2)),y1:Math.min(h-1,Math.round(bottom.y+halfY*2))},method:'bright-strip-fixed'};
+        }
+      }
+      return null;
     }
     function makeWhiteBandPreview(sourceCanvas,candidate){
       const out=document.createElement('canvas'),ctx=out.getContext('2d'),band=candidate.band,pad=18,sw=Math.max(1,band.x1-band.x0+1+pad*2),sh=Math.max(1,band.y1-band.y0+1);
@@ -546,6 +618,7 @@
     }
     function purpleScore(rgb){return (rgb[0]+rgb[2])*.5-rgb[1]+Math.max(0,rgb[2]-rgb[1])*.35}
     function orangeScore(rgb){return rgb[0]*1.35-rgb[1]*.55-rgb[2]*.8}
+    function greenScore(rgb){return rgb[1]*1.3-rgb[0]*.45-rgb[2]*.55}
     function findStripPadsByColor(data,w,h){
       const comps=findColorComponents(data,w,h).sort((a,b)=>b.area-a.area).slice(0,90);
       let best=null;
