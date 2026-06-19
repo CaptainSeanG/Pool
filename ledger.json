@@ -1,5 +1,38 @@
 [
   {
+    "id": "photo-1781838378746",
+    "date": "2026-06-18",
+    "time": "7:06 PM",
+    "source": "Phone strip photo",
+    "confidence": "Photo analysis - review",
+    "fc": null,
+    "tc": null,
+    "ph": null,
+    "ta": null,
+    "ch": null,
+    "cya": null,
+    "iron": null,
+    "copper": null,
+    "phosphates": null,
+    "tds": null,
+    "notes": "Strip photo saved, but seven color pads were not confidently detected. Try a closer strip-only photo with the pads centered.",
+    "analysis": "Strip photo saved, but seven color pads were not confidently detected. Try a closer strip-only photo with the pads centered.",
+    "stripCorrection": null,
+    "correctionText": "",
+    "photo": {
+      "path": "uploads/2026-06-18/photo-1781838378746.jpg",
+      "url": "uploads/2026-06-18/photo-1781838378746.jpg",
+      "name": "IMG_4349.jpeg",
+      "type": "image/jpeg",
+      "width": 282,
+      "height": 1200,
+      "uploadedAt": "2026-06-19T03:06:18.746Z",
+      "processedPath": null,
+      "processedUrl": null,
+      "stripMatches": null
+    }
+  },
+  {
     "id": "photo-1781823074486",
     "date": "2026-06-18",
     "time": "3:50 PM",
