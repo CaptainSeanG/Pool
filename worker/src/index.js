@@ -66,6 +66,7 @@ async function handleUpload(request, env, cors) {
       uploadedAt: photo.uploadedAt || new Date().toISOString(),
       processedPath: processedPath || null,
       processedUrl: processedPath || null,
+      stripMatches: sanitizeStripMatches(photo.stripMatches),
     },
   };
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -220,6 +221,22 @@ function sanitizeRow(row) {
     if (!Number.isFinite(clean[field])) clean[field] = null;
   }
   return clean;
+}
+
+function sanitizeStripMatches(matches) {
+  if (!Array.isArray(matches)) return null;
+  return matches.slice(0, 8).map((match) => ({
+    key: match?.key ? String(match.key).slice(0, 32) : "",
+    label: match?.label ? String(match.label).slice(0, 80) : "",
+    value: match?.value ?? null,
+    score: Number.isFinite(Number(match?.score)) ? Number(match.score) : null,
+    sampledRgb: Array.isArray(match?.sampledRgb)
+      ? match.sampledRgb.slice(0, 3).map((value) => {
+          const channel = Math.round(Number(value));
+          return Number.isFinite(channel) ? Math.max(0, Math.min(255, channel)) : 0;
+        })
+      : null,
+  })).filter((match) => match.key);
 }
 
 function safeName(value) {
