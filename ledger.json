@@ -1,5 +1,45 @@
 [
   {
+    "id": "photo-1785973186003",
+    "date": "2026-08-05",
+    "time": "3:31 PM",
+    "source": "Leslie's sheet upload",
+    "confidence": "OCR - review",
+    "fc": 0.15,
+    "tc": 0.9,
+    "ph": 8.1,
+    "ta": 89,
+    "ch": 198,
+    "cya": 32,
+    "iron": 4,
+    "copper": 1,
+    "phosphates": 146,
+    "tds": 1125,
+    "notes": "OCR parsed: FC 0.15, TC 0.9, pH 8.1, TA 89, CH 198, CYA 32, Iron 4, Copper 1, Phosphates 146, TDS 1125. Review on the dashboard ledger. Strip correction: CH -8, FC -5.2, TC -5.5, CYA -18, TA -27, pH -0.1. Based on Leslie's results minus the latest prior strip reading.",
+    "analysis": "OCR parsed: FC 0.15, TC 0.9, pH 8.1, TA 89, CH 198, CYA 32, Iron 4, Copper 1, Phosphates 146, TDS 1125. Review on the dashboard ledger. Strip correction: CH -8, FC -5.2, TC -5.5, CYA -18, TA -27, pH -0.1. Based on Leslie's results minus the latest prior strip reading.",
+    "stripCorrection": {
+      "ch": -8,
+      "fc": -5.2,
+      "tc": -5.5,
+      "cya": -18,
+      "ta": -27,
+      "ph": -0.1
+    },
+    "correctionText": "Strip correction: CH -8, FC -5.2, TC -5.5, CYA -18, TA -27, pH -0.1. Based on Leslie's results minus the latest prior strip reading.",
+    "photo": {
+      "path": "uploads/2026-08-05/photo-1785973186003.jpg",
+      "url": "uploads/2026-08-05/photo-1785973186003.jpg",
+      "name": "IMG_5733.jpeg",
+      "type": "image/jpeg",
+      "width": 900,
+      "height": 1200,
+      "uploadedAt": "2026-08-05T23:39:46.003Z",
+      "processedPath": null,
+      "processedUrl": null,
+      "stripMatches": null
+    }
+  },
+  {
     "id": "photo-1782601787213",
     "date": "2026-06-27",
     "time": "4:05 PM",
